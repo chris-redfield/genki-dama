@@ -134,10 +134,10 @@ const TUNE_DEF={
   moveSpeed:.30, dashSpeed:1.25, dodgeKi:16, kiMax:100, kiRegen:5, powerUpKi:45,
   dmgBase:38, bpExponent:.6, chargeBP:.5,  // BP shown rises by up to 50% while charging
   enemyDelayMin:.6, enemyDelayMax:1.8,     // seconds between enemy commands
-  xpScale:1
+  xpScale:1, mapZoom:1
 };
 let T={...TUNE_DEF};try{Object.assign(T,JSON.parse(localStorage.getItem('kiduel-tune')||'{}'));}catch(e){}
-const TUNE_LABELS={slotsStart:'Command slots at level 1',slotsMax:'Max command slots',roundTime:'Round length (s)',gaugeLoop:'Power gauge loop (s)',guardLoop:'Guard gauge loop (s)',moveSpeed:'Move speed',dashSpeed:'Dash speed',dodgeKi:'Ki burned by a dodge',kiMax:'Max ki',kiRegen:'Ki regen per second',powerUpKi:'Ki from Power Up',dmgBase:'Base damage',bpExponent:'BP influence',chargeBP:'BP gain while charging',enemyDelayMin:'Enemy delay min (s)',enemyDelayMax:'Enemy delay max (s)',xpScale:'XP multiplier'};
+const TUNE_LABELS={slotsStart:'Command slots at level 1',slotsMax:'Max command slots',roundTime:'Round length (s)',gaugeLoop:'Power gauge loop (s)',guardLoop:'Guard gauge loop (s)',moveSpeed:'Move speed',dashSpeed:'Dash speed',dodgeKi:'Ki burned by a dodge',kiMax:'Max ki',kiRegen:'Ki regen per second',powerUpKi:'Ki from Power Up',dmgBase:'Base damage',bpExponent:'BP influence',chargeBP:'BP gain while charging',enemyDelayMin:'Enemy delay min (s)',enemyDelayMax:'Enemy delay max (s)',xpScale:'XP multiplier',mapZoom:'Map zoom (1 = whole map)'};
 const tb=$('tuneBody');
 Object.keys(TUNE_DEF).forEach(k=>{const l=document.createElement('label');l.htmlFor='tn-'+k;l.textContent=TUNE_LABELS[k];const i=document.createElement('input');i.type='number';i.step='any';i.id='tn-'+k;i.value=T[k];
   i.addEventListener('change',()=>{const v=parseFloat(i.value);if(!isNaN(v)){T[k]=v;try{localStorage.setItem('kiduel-tune',JSON.stringify(T));}catch(e){}}});tb.append(l,i);});
@@ -145,7 +145,7 @@ const extra=document.createElement('div');extra.className='full row';
 extra.innerHTML='<button class="ghost" id="tReset" type="button">Reset tuning</button><button class="ghost" id="tLvl" type="button">+1 level</button><button class="ghost" id="tWipe" type="button">Wipe save</button>';
 tb.append(extra);
 const hp=document.createElement('div');hp.className='full';
-hp.innerHTML='<p class="hint" id="portHint">Loading hero portraits…</p>';
+hp.innerHTML='<p class="hint" id="portHint">Loading hero portraits…</p><p class="hint" id="topHint">Loading hero top-down sprites…</p><p class="hint" id="etopHint">Loading enemy top-down sprites…</p>';
 tb.append(hp);
 const note=document.createElement('p');note.className='hint full';note.textContent='Slot counts, the looping power gauge, no stun and the real-time enemy follow what you measured in the original. Other numbers are first guesses.';tb.append(note);
 
@@ -374,7 +374,7 @@ function damage(att,def,c,g,pos){
 function popText(f,text,c){B.pops.push({x:f.x,y:f.y-.06,t:0,text,c,word:true});}
 
 function updFighter(f,dt,moveVec){
-  const foe=f===B.p?B.e:B.p;
+  const foe=f===B.p?B.e:B.p;f.moving=false;
   f.hurt=Math.max(0,f.hurt-dt);f.poseT-=dt;if(f.poseT<=0&&!f.guarding&&!f.charging)f.pose='idle';
   f.shoutT-=dt;f.reveal=Math.max(0,f.reveal-dt);
   if(!f.charging&&!f.guarding&&!(f.anim&&f.anim.id==='power'))f.ki=Math.min(T.kiMax,f.ki+T.kiRegen*dt);
@@ -396,7 +396,7 @@ function updFighter(f,dt,moveVec){
     else if(moveVec.x||moveVec.y){const want=Math.atan2(moveVec.y,moveVec.x),cur=Math.atan2(p.vy,p.vx);let d=((want-cur+Math.PI*3)%TAU)-Math.PI;const turn=clamp(d,-4*dt,4*dt),sp=Math.hypot(p.vx,p.vy);p.vx=Math.cos(cur+turn)*sp;p.vy=Math.sin(cur+turn)*sp;}
   }else if(f.charging){faceFromVec(f,moveVec);}   // turn to aim while charging
   else if(!f.guarding&&f.hurt<=0&&(moveVec.x||moveVec.y)){
-    const l=Math.hypot(moveVec.x,moveVec.y);f.x+=moveVec.x/l*T.moveSpeed*dt;f.y+=moveVec.y/l*T.moveSpeed*dt;faceFromVec(f,moveVec);
+    const l=Math.hypot(moveVec.x,moveVec.y);f.x+=moveVec.x/l*T.moveSpeed*dt;f.y+=moveVec.y/l*T.moveSpeed*dt;faceFromVec(f,moveVec);f.moving=true;
   }
   f.x=clamp(f.x,FR,1-FR);f.y=clamp(f.y,FR,1-FR);
 }
@@ -535,13 +535,21 @@ function slicePortraits(img,opt={}){
       for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=px+dx,ny=py+dy;if(nx<0||ny<0||nx>=mw||ny>=mh)continue;const q=ny*mw+nx;if(lab[q]<0&&md[q*4+3]>=50){lab[q]=k;st.push(q);}}}
     comps.push({k,area,x0,x1,y0,y1});}
   const big=comps.filter(q=>q.area>mw*mh*.008);
-  const groups=big.map(q=>({ids:[q.k],x0:q.x0,x1:q.x1,y0:q.y0,y1:q.y1,area:q.area}));
+  let groups=big.map(q=>({ids:[q.k],x0:q.x0,x1:q.x1,y0:q.y0,y1:q.y1,area:q.area}));
+  if(groups.length>N){
+    for(const g of [...groups].sort((p,q)=>(p.x1-p.x0)*(p.y1-p.y0)-(q.x1-q.x0)*(q.y1-q.y0))){
+      const cx=(g.x0+g.x1)/2,cy=(g.y0+g.y1)/2;
+      const host=groups.find(h=>h!==g&&!h.gone&&cx>h.x0&&cx<h.x1&&cy>h.y0&&cy<h.y1&&(h.x1-h.x0)*(h.y1-h.y0)>(g.x1-g.x0)*(g.y1-g.y0));
+      if(host){host.ids.push(...g.ids);host.x0=Math.min(host.x0,g.x0);host.x1=Math.max(host.x1,g.x1);host.y0=Math.min(host.y0,g.y0);host.y1=Math.max(host.y1,g.y1);g.gone=true;}
+    }
+    groups=groups.filter(g=>!g.gone);
+  }
   if(groups.length===N){
     // small bits (speed lines, sparks) join the nearest figure if they're close to it
     for(const q of comps){if(q.area>mw*mh*.008)continue;let best=null,bd=1e9;
       for(const g of groups){const dx=Math.max(0,g.x0-q.x1,q.x0-g.x1),dy=Math.max(0,g.y0-q.y1,q.y0-g.y1),dd=Math.hypot(dx,dy);if(dd<bd){bd=dd;best=g;}}
       if(best&&bd<mw*.04){best.ids.push(q.k);best.x0=Math.min(best.x0,q.x0);best.x1=Math.max(best.x1,q.x1);best.y0=Math.min(best.y0,q.y0);best.y1=Math.max(best.y1,q.y1);}}
-    groups.forEach(g=>{g.row=((g.y0+g.y1)/2)<mh/2?0:1;g.cx=(g.x0+g.x1)/2;});
+    groups.forEach(g=>{g.row=Math.min(ROWS-1,Math.floor(((g.y0+g.y1)/2)/(mh/ROWS)));g.cx=(g.x0+g.x1)/2;});
     groups.sort((p,q)=>p.row-q.row||p.cx-q.cx);
     return groups.map(g=>{
       const set=new Set(g.ids);const gm=document.createElement('canvas');gm.width=mw;gm.height=mh;const gx=gm.getContext('2d');const gd=gx.createImageData(mw,mh);
@@ -551,6 +559,14 @@ function slicePortraits(img,opt={}){
       const t=document.createElement('canvas');t.width=X1-X0;t.height=Y1-Y0;const tx=t.getContext('2d');
       tx.drawImage(c,X0,Y0,t.width,t.height,0,0,t.width,t.height);
       tx.globalCompositeOperation='destination-in';tx.imageSmoothingEnabled=true;tx.drawImage(gm,X0*f,Y0*f,t.width*f,t.height*f,0,0,t.width,t.height);
+      if(opt.anchor){const td=tx.getImageData(0,0,t.width,t.height).data;let sx=0,sy=0,n=0;
+        const upper=opt.anchor==='upper';
+        // 'upper': ignore warm effects (flashes, auras, ki orbs), then take the top half of the body itself
+        const body=(k)=>td[k+3]>120&&!(td[k]>190&&td[k+2]<140&&td[k]-td[k+2]>90);
+        let ty0=t.height,ty1=0;if(upper){for(let yy=0;yy<t.height;yy+=2)for(let xx=0;xx<t.width;xx+=2){const k=(yy*t.width+xx)*4;if(body(k)){if(yy<ty0)ty0=yy;if(yy>ty1)ty1=yy;}}}
+        const ymin=upper?ty0:0,ymax=upper?ty0+(ty1-ty0)*.5:t.height;
+        for(let yy=ymin;yy<ymax;yy+=2)for(let xx=0;xx<t.width;xx+=2){const k=(yy*t.width+xx)*4;if(upper?body(k):(td[k+3]>120&&td[k]+td[k+1]+td[k+2]<240)){sx+=xx;sy+=yy;n++;}}
+        t.ax=n?sx/n:t.width/2;t.ay=n?sy/n:t.height/2;}
       return t;});
   }
   // fallback: plain grid cells
@@ -668,12 +684,15 @@ function sidePanel(S,f,mirror){
   const bpShow=Math.round(f.bp*(1+(f.charging?f.gauge*T.chargeBP:0)));
   comic(String(bpShow),mirror?S.x+S.w:S.x,y+ns*.6,ns,f.charging?SUN:'#fff',al);
 }
+const ARENA_FILE='assets/Turquoise Alien Grassland Battle Map.png';
+const ARENA=new Image();ARENA.src=encodeURI(ARENA_FILE);
 function drawField(F){
   const toS=(x,y)=>({x:F.x+x*F.s,y:F.y+y*F.s});
   ctx.save();rr(F.x,F.y,F.s,F.s,8);ctx.clip();
+  if(ARENA.complete&&ARENA.naturalWidth){const z=Math.max(1,T.mapZoom||1),sw=ARENA.naturalWidth/z,sh=ARENA.naturalHeight/z;ctx.drawImage(ARENA,(ARENA.naturalWidth-sw)/2,(ARENA.naturalHeight-sh)/2,sw,sh,F.x,F.y,F.s,F.s);}else{
   if(!GPAT&&GROUND.complete&&GROUND.naturalWidth){try{GPAT=ctx.createPattern(GROUND,'repeat');}catch(e){}}
   if(GPAT&&GPAT.setTransform){const k=F.s/1400;GPAT.setTransform(new DOMMatrix().translate(F.x,F.y).scale(k,k));ctx.fillStyle=GPAT;}else ctx.fillStyle='#e8b066';
-  ctx.fillRect(F.x,F.y,F.s,F.s);
+  ctx.fillRect(F.x,F.y,F.s,F.s);}
   if(!B){ctx.restore();rr(F.x,F.y,F.s,F.s,8);ink(4);return;}
   // aim guide for straight shots while charging: shows the line the beam will take
   const p=B.p;
@@ -688,7 +707,51 @@ function drawField(F){
   for(const pp of B.pops){const a=toS(pp.x,pp.y);ctx.globalAlpha=clamp(1.6-pp.t*1.6,0,1);comic(pp.text,a.x,a.y-pp.t*F.s*.08-F.s*.06,pp.word?Math.round(F.s*.05):Math.round(F.s*.065),pp.c);ctx.globalAlpha=1;}
   ctx.restore();rr(F.x,F.y,F.s,F.s,8);ink(4);
 }
+const TOPDOWN_FILE='assets/Top-down Namek-saga Gohan action sprites.png';
+// order on the sheet: 0 ready, 1 walk L, 2 walk R, 3 dash, 4 punch, 5 kick, 6 charging, 7 firing, 8 guard, 9 hurt, 10 knocked down, 11 power up
+let HTOP=null,ETOP=null;
+const ENEMY_TOPDOWN_FILE='assets/Top-down alien action sprite sheet.png';
+(()=>{const i=new Image();
+  i.onload=()=>{try{ETOP=slicePortraits(i,{cols:4,rows:3,anchor:'upper'});$('etopHint').textContent=ETOP.length===12?'Enemy top-down sprites: 12 poses loaded.':'Enemy top-down sheet loaded, but 12 poses were not found.';}catch(e){ETOP=null;$('etopHint').textContent='Could not read the enemy top-down sheet. Open the page through a web server, not as a local file.';}};
+  i.onerror=()=>{$('etopHint').textContent=ENEMY_TOPDOWN_FILE+' not found. Using the token.';};
+  i.src=encodeURI(ENEMY_TOPDOWN_FILE);})();
+(()=>{const i=new Image();
+  i.onload=()=>{try{HTOP=slicePortraits(i,{cols:4,rows:3,anchor:true});$('topHint').textContent=HTOP.length===12?'Hero top-down sprites: 12 poses loaded.':'Top-down sheet loaded, but 12 poses were not found.';}catch(e){HTOP=null;$('topHint').textContent='Could not read the top-down sheet. Open the page through a web server, not as a local file.';}};
+  i.onerror=()=>{$('topHint').textContent=TOPDOWN_FILE+' not found. Using the token.';};
+  i.src=encodeURI(TOPDOWN_FILE);})();
+function topPose(f){
+  if(phase==='ko'&&f.hp<=0)return 10;
+  if(f.hurt>0)return 9;
+  if(f.dodge>0)return 3;
+  if(f.anim){const id=f.anim.id;if(id==='punch')return 4;if(id==='kick')return 5;if(id==='power')return 11;}
+  if(f.charging)return 6;
+  if(f.steer)return 7;
+  if(f.pose==='attack'&&f.lastCmd&&['ctrl','beam'].includes(CMDS[f.lastCmd].kind))return 7;
+  if(f.guarding)return 8;
+  if(f.moving)return Math.floor(gt/.16)%2?2:1;
+  return 0;
+}
+function drawTopSprite(f,x,y,r,idx,alpha=1){
+  const isP=f.side==='p',sheet=isP?HTOP:ETOP,im=sheet[idx],ref=sheet[0],k=(r*(isP?3.4:4.6))/Math.max(ref.width,ref.height);
+  const ang=idx===10?0:Math.atan2(f.fy,f.fx)+Math.PI/2;   // sprites face up; the knocked-down pose stays upright
+  ctx.save();ctx.translate(x,y);ctx.rotate(ang);ctx.globalAlpha=alpha;
+  if('filter' in ctx){const fl=[];if(!isP&&B.opp.hue)fl.push(`hue-rotate(${B.opp.hue}deg)`);if(f.hurt>0)fl.push('brightness(1.8)');
+    if(alpha>=1)fl.push('drop-shadow(0 0 1.2px #1b1512) drop-shadow(0 0 1.2px #1b1512)');   // ink outline so fighters stand out from the ground
+    if(fl.length)ctx.filter=fl.join(' ');}
+  ctx.drawImage(im,-im.ax*k,-im.ay*k,im.width*k,im.height*k);
+  ctx.restore();
+}
 function drawFighter(f,F,toS){
+  const sheet=f.side==='p'?HTOP:ETOP;
+  if(sheet&&sheet.length===12){
+    const a=toS(f.x,f.y),r=FR*F.s,idx=topPose(f);
+    if(f.dodge>0)f.trail.forEach((t,i)=>{if(i%2)return;const b=toS(t.x,t.y);drawTopSprite(f,b.x,b.y,r,3,.3*(1-i/6));});
+    if(f.charging){circ(a.x,a.y,r*(1.4+f.gauge*1.2));ctx.fillStyle='rgba(255,90,42,.22)';ctx.fill();}
+    ctx.fillStyle='rgba(60,35,15,.28)';ctx.beginPath();ctx.ellipse(a.x+r*.25,a.y+r*.35,r*1.05,r*.8,0,0,TAU);ctx.fill();
+    const j=f.hurt>0?(Math.random()-.5)*4:0;
+    drawTopSprite(f,a.x+j,a.y,r,idx);
+    return;
+  }
   const a=toS(f.x,f.y),r=FR*F.s,isP=f.side==='p';
   if(f.dodge>0)f.trail.forEach((t,i)=>{const b=toS(t.x,t.y);circ(b.x,b.y,r);ctx.globalAlpha=.25*(1-i/6);ctx.fillStyle=isP?'#2b7f8e':B.opp.color;ctx.fill();ctx.globalAlpha=1;});
   if(f.charging||(f.anim&&f.anim.id==='power')){const g=f.charging?f.gauge:.7;circ(a.x,a.y,r*(1.4+g*1.2));ctx.fillStyle=f.charging?'rgba(255,90,42,.25)':'rgba(255,210,58,.35)';ctx.fill();}
