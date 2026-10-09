@@ -312,7 +312,7 @@ function activateOption(o){
 function unpickLast(){if(B&&B.p.queue.length){B.p.queue.pop();sfx.unpick();}}
 
 /* ================= FIGHT LOGIC ================= */
-const FR=.035; // fighter radius in field units
+const FR=.035*.65; // fighter radius in field units (fighters at 65% of their original size)
 const nextCmd=f=>f.queue[f.qi];
 const busy=f=>f.anim||f.steer||f.hurt>0||f.dodge>0||f.charging;
 function faceFromVec(f,v){if(v.x||v.y){const l=Math.hypot(v.x,v.y);f.fx=Math.round(v.x/l);f.fy=Math.round(v.y/l);if(!f.fx&&!f.fy)f.fx=1;}}
@@ -472,9 +472,10 @@ function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r)
 function comic(text,x,y,size,fill='#fff',align='center',rot=0){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.font=`${size}px ${DISP}`;ctx.textAlign=align;ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=Math.max(3,size*.18);ctx.strokeStyle=INK;ctx.strokeText(text,0,0);ctx.fillStyle=fill;ctx.fillText(text,0,0);ctx.restore();}
 function txt(text,x,y,size,col=INK,align='left',weight=800){ctx.font=`${weight} ${size}px ${BODY}`;ctx.fillStyle=col;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(text,x,y);}
 function layout(){
-  const top=Math.round(H*.46),pad=Math.max(10,Math.min(W,H)*.02);
+  const pad=Math.max(10,Math.min(W,H)*.02);
+  const top=Math.round(pad*1.5+(H*.46-pad*1.5)*.9);   // portraits 10% shorter, so the field gets more room
   const pw=(W-pad*3)/2,ph=top-pad*1.5;
-  const fs=Math.min(H-top-pad*1.2,W*.44),fx=(W-fs)/2,fy=top+pad*.3;
+  const fs=Math.min(H-top-pad*.9,W*.5),fx=(W-fs)/2,fy=top+pad*.3;
   return {pad,top,pw,ph,P1:{x:pad,y:pad,w:pw,h:ph},P2:{x:pad*2+pw,y:pad,w:pw,h:ph},F:{x:fx,y:fy,s:fs},SL:{x:pad,y:fy,w:fx-pad*2,h:fs},SR:{x:fx+fs+pad,y:fy,w:W-fx-fs-pad*2,h:fs}};
 }
 const ICON_FILE='assets/Special beam in icon grid.png';
