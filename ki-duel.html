@@ -42,6 +42,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-off
 .rung em{font-style:normal;font-weight:800;color:var(--ki);align-self:center}
 .rung[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
 .rung.done b::after{content:"  ✓";color:#2f9a3f}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{display:flex;flex-direction:column;gap:2px;text-align:left;background:#fff;border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink);padding:9px 12px}
+.mode b{font-family:var(--display);font-weight:400;font-size:22px;letter-spacing:.03em}
+.mode small{color:var(--muted);line-height:1.35}
+.mode[aria-pressed="true"]{background:var(--sun)}
+.mode[aria-pressed="true"] small{color:var(--ink)}
+.mode:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 .player{display:grid;grid-template-columns:repeat(4,auto);gap:4px 14px;font-variant-numeric:tabular-nums;justify-content:start}
 .player span:nth-child(odd){color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;align-self:center}
 .player span:nth-child(even){font-weight:800}
@@ -63,6 +70,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-off
 .ab{display:flex;gap:12px;align-items:flex-end;pointer-events:auto}
 .ab button{width:70px;height:70px;border-radius:50%}
 .ab #tA{background:var(--sun);width:80px;height:80px;margin-bottom:24px}
+.ab #tC{background:#bfe6ff}
+.ab #tP{background:#bfe9b0;font-size:18px}
+#pad:not(.free) .free-only{display:none}
+#pad.free .ab{display:grid;grid-template-columns:repeat(2,66px);grid-template-rows:repeat(2,66px);gap:10px}
+#pad.free .ab button{width:66px;height:66px;margin:0}
+#pad.free #tP{grid-area:1/1}#pad.free #tC{grid-area:1/2}#pad.free #tB{grid-area:2/1}#pad.free #tA{grid-area:2/2}
 </style>
 
 <div id="stage">
@@ -75,28 +88,44 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-off
 
   <div id="pad">
     <div class="dpad"><button data-k="up">▲</button><button data-k="left">◀</button><button data-k="right">▶</button><button data-k="down">▼</button></div>
-    <div class="ab"><button id="tB">B</button><button id="tA">A</button></div>
+    <div class="ab"><button id="tP" class="free-only">PWR</button><button id="tB">B</button><button id="tC" class="free-only">C</button><button id="tA">A</button></div>
   </div>
 
   <div class="overlay" id="title">
     <div class="card">
       <div class="eyebrow">Battle prototype · placeholder art</div>
       <h1>Ki <span>Duel</span></h1>
-      <p>Pick your commands in secret, then fight in real time on the field below. He picked his too, and you can't see them.</p>
-      <dl class="keys">
-        <dt>Arrows / WASD</dt><dd>Move. While charging, turn to aim.</dd>
-        <dt>A: J / Space</dt><dd>Use your next command. Hold to charge ki blasts, release to fire. The gauge loops, so don't overcharge.</dd>
-        <dt>B: K / Shift</dt><dd>Hold to guard. It holds if your guard gauge is higher than his attack's power. Direction + B dodges, which burns ki.</dd>
-        <dt>Control Shot</dt><dd>Steer it with the arrows while it flies. A or B lets go.</dd>
-        <dt>Picking</dt><dd>Click or arrows + A to add, B to remove, Enter to fight.</dd>
-      </dl>
+      <div class="modes" role="group" aria-label="Game mode">
+        <button type="button" class="mode" data-mode="command"><b>Command Battle</b><small>Pick your moves in secret, then fight.</small></button>
+        <button type="button" class="mode" data-mode="free"><b>Free Fight</b><small>No picking. Every move just costs ki.</small></button>
+      </div>
+      <div data-for="command">
+        <p>Pick your commands in secret, then fight in real time on the field below. He picked his too, and you can't see them.</p>
+        <dl class="keys">
+          <dt>Arrows / WASD</dt><dd>Move. While charging, turn to aim.</dd>
+          <dt>A: J / Space</dt><dd>Use your next command. Hold to charge ki blasts, release to fire. The gauge loops, so don't overcharge.</dd>
+          <dt>B: K / Shift</dt><dd>Hold to guard. It holds if your guard gauge is higher than his attack's power. Direction + B dodges, which burns ki.</dd>
+          <dt>Control Shot</dt><dd>Steer it with the arrows while it flies. A or B lets go.</dd>
+          <dt>Picking</dt><dd>Click or arrows + A to add, B to remove, Enter to fight.</dd>
+        </dl>
+      </div>
+      <div data-for="free" hidden>
+        <p>Fight from the first second. Punch and blast as much as you like, as long as you have the ki for it. When you run dry, power up, but you stand still while you do.</p>
+        <dl class="keys">
+          <dt>Arrows / WASD</dt><dd>Move. While charging a blast, turn to aim.</dd>
+          <dt>A: J / Space / Z</dt><dd>Punch. Keep tapping to chain punch, punch, kick. Each hit costs a little ki.</dd>
+          <dt>B: K / Shift / X</dt><dd>Hold to guard. Hold a direction, then press B to dash (6 ki).</dd>
+          <dt>C: L / C</dt><dd>Ki blast. Tap for a quick shot, hold to charge a stronger one. From level 4, a full charge with 75 ki fires the Special Beam.</dd>
+          <dt>Power up: I / V</dt><dd>Hold to refill ki.</dd>
+        </dl>
+      </div>
       <div class="row"><button class="primary" id="bPlay">Enter the arena</button></div>
     </div>
   </div>
 
   <div class="overlay" id="ladder" hidden>
     <div class="card">
-      <div class="eyebrow">Choose your next fight</div>
+      <div class="row"><div class="eyebrow" id="lMode">Choose your next fight</div><button class="ghost" id="bMode" type="button">Change mode</button></div>
       <h2>The road to the Warlord</h2>
       <div class="player" id="pStats"></div>
       <div class="ladder" id="rungs"></div>
@@ -134,10 +163,13 @@ const TUNE_DEF={
   moveSpeed:.30, dashSpeed:1.25, dodgeKi:16, kiMax:100, kiRegen:5, powerUpKi:45,
   dmgBase:38, bpExponent:.6, chargeBP:.5,  // BP shown rises by up to 50% while charging
   enemyDelayMin:.6, enemyDelayMax:1.8,     // seconds between enemy commands
-  xpScale:1, mapZoom:1
+  xpScale:1, mapZoom:1,
+  // Free Fight mode only
+  freeKiRegen:1.5, freePowerKi:35, freePunchKi:3, freeDashKi:6, freeKickKi:6, comboWindow:.45, freeDmg:.35
 };
 let T={...TUNE_DEF};try{Object.assign(T,JSON.parse(localStorage.getItem('kiduel-tune')||'{}'));}catch(e){}
-const TUNE_LABELS={slotsStart:'Command slots at level 1',slotsMax:'Max command slots',roundTime:'Round length (s)',gaugeLoop:'Power gauge loop (s)',guardLoop:'Guard gauge loop (s)',moveSpeed:'Move speed',dashSpeed:'Dash speed',dodgeKi:'Ki burned by a dodge',kiMax:'Max ki',kiRegen:'Ki regen per second',powerUpKi:'Ki from Power Up',dmgBase:'Base damage',bpExponent:'BP influence',chargeBP:'BP gain while charging',enemyDelayMin:'Enemy delay min (s)',enemyDelayMax:'Enemy delay max (s)',xpScale:'XP multiplier',mapZoom:'Map zoom (1 = whole map)'};
+const TUNE_LABELS={slotsStart:'Command slots at level 1',slotsMax:'Max command slots',roundTime:'Round length (s)',gaugeLoop:'Power gauge loop (s)',guardLoop:'Guard gauge loop (s)',moveSpeed:'Move speed',dashSpeed:'Dash speed',dodgeKi:'Ki burned by a dodge',kiMax:'Max ki',kiRegen:'Ki regen per second',powerUpKi:'Ki from Power Up',dmgBase:'Base damage',bpExponent:'BP influence',chargeBP:'BP gain while charging',enemyDelayMin:'Enemy delay min (s)',enemyDelayMax:'Enemy delay max (s)',xpScale:'XP multiplier',mapZoom:'Map zoom (1 = whole map)',
+  freeKiRegen:'Free: ki regen per second',freePowerKi:'Free: ki per second powering up',freePunchKi:'Free: ki per punch',freeDashKi:'Free: ki per dash',freeKickKi:'Free: ki per kick',comboWindow:'Free: combo window (s)',freeDmg:'Free: damage multiplier'};
 const tb=$('tuneBody');
 Object.keys(TUNE_DEF).forEach(k=>{const l=document.createElement('label');l.htmlFor='tn-'+k;l.textContent=TUNE_LABELS[k];const i=document.createElement('input');i.type='number';i.step='any';i.id='tn-'+k;i.value=T[k];
   i.addEventListener('change',()=>{const v=parseFloat(i.value);if(!isNaN(v)){T[k]=v;try{localStorage.setItem('kiduel-tune',JSON.stringify(T));}catch(e){}}});tb.append(l,i);});
@@ -194,12 +226,15 @@ const sfx={pick:()=>tone('square',660,660,.05,.06),unpick:()=>tone('square',330,
 let B=null; // current battle
 let phase='title',pt=0,gt=0;
 function fighter(side,st){return {side,x:side==='p'?.25:.75,y:side==='p'?.7:.3,fx:side==='p'?1:-1,fy:0,hp:st.hp,hpMax:st.hp,bp:st.bp,ki:T.kiMax,
-  queue:[],qi:0,charging:null,gauge:0,guarding:false,guardG:1,anim:null,steer:null,hurt:0,dodge:0,trail:[],pose:'idle',poseT:0,shout:null,shoutT:0,reveal:0,lastCmd:null,cool:rand(.8,1.6),goal:null};}
+  queue:[],qi:0,charging:null,gauge:0,guarding:false,guardG:1,anim:null,steer:null,hurt:0,dodge:0,trail:[],pose:'idle',poseT:0,shout:null,shoutT:0,reveal:0,lastCmd:null,cool:rand(.8,1.6),goal:null,
+  powering:false,combo:0,comboT:0,buf:0};}
 function startBattle(opp){
   const hs=heroStats();
-  B={opp,hs,p:fighter('p',hs),e:fighter('e',opp),proj:[],fx:[],round:0,roundT:0,cursor:0,pops:[],result:null,meleeHits:0,energyHits:0};
+  B={mode:MODE,opp,hs,p:fighter('p',hs),e:fighter('e',opp),proj:[],fx:[],round:0,roundT:0,cursor:0,pops:[],result:null,meleeHits:0,energyHits:0};
   B.p.name='You';B.e.name=opp.name;
-  hideAll();showPad(true);toSelect();
+  hideAll();showPad(true);
+  if(B.mode==='free'){B.round=1;phase='intro';pt=0;B.p.shout=pick(['Here I come!','Let\'s go!']);B.p.shoutT=1.4;}  // no picking: straight to the fight
+  else toSelect();
   B.e.shout=pick(opp.shout);B.e.shoutT=2.2;
 }
 function toSelect(){
@@ -223,8 +258,8 @@ function endBattle(win){
   }
   $('rEyebrow').textContent=o.name;
   $('rTitle').textContent=win?'Victory!':'Defeated';
-  $('rLine').textContent=win?(o.boss?'The Warlord falls. Namek is safe, for now.':pick(['He never saw it coming.','Your plan held.','Clean read.'])):'He outplayed you this time. Spar a few rounds to get stronger, then come back.';
-  const rows=[['Rounds',B.round],['Melee hits landed',B.meleeHits],['Ki hits landed',B.energyHits]];
+  $('rLine').textContent=win?(o.boss?'The Warlord falls. Namek is safe, for now.':pick(B.mode==='free'?['He never saw it coming.','Too fast for him.','Clean finish.']:['He never saw it coming.','Your plan held.','Clean read.'])):'He outplayed you this time. Spar a few rounds to get stronger, then come back.';
+  const rows=[B.mode==='free'?['Time',`${Math.round(B.roundT)}s`]:['Rounds',B.round],['Melee hits landed',B.meleeHits],['Ki hits landed',B.energyHits]];
   if(win)rows.push(['Experience',`+${gained}`]);
   lvlUps.forEach(s=>rows.push(['Level up!',s]));
   $('rStats').innerHTML=rows.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('');
@@ -233,16 +268,27 @@ function endBattle(win){
 }
 
 /* ================= MENUS ================= */
+const MODE_NAMES={command:'Command Battle',free:'Free Fight'};
+let MODE='command';try{const m=localStorage.getItem('kiduel-mode');if(MODE_NAMES[m])MODE=m;}catch(e){}
+function setMode(m){
+  MODE=m;try{localStorage.setItem('kiduel-mode',m);}catch(e){}
+  document.querySelectorAll('.mode').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===m)));
+  document.querySelectorAll('#title [data-for]').forEach(d=>d.hidden=d.dataset.for!==m);
+}
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>{audioInit();setMode(b.dataset.mode);sfx.pick();}));
+setMode(MODE);
+function showTitle(){hideAll();phase='title';showPad(false);B=null;$('title').hidden=false;}
 function hideAll(){['title','ladder','result'].forEach(id=>$(id).hidden=true);}
 function showLadder(){
   hideAll();phase='ladder';showPad(false);B=null;
+  $('lMode').textContent=`Choose your next fight · ${MODE_NAMES[MODE]}`;
   const hs=heroStats();
   $('pStats').innerHTML=[['Level',SV.lvl],['XP',`${SV.xp}/${xpNeed(SV.lvl)}`],['HP',hs.hp],['BP',hs.bp],['Slots',hs.slots],['Melee bonus',`+${Math.round((hs.meleeB-1)*100)}%`],['Ki bonus',`+${Math.round((hs.energyB-1)*100)}%`],['Special',unlocked('special')?'Yes':`Lv ${CMDS.special.unlock}`]]
     .map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('');
   const r=$('rungs');r.innerHTML='';
   const sp=sparring();
   const mk=(o,locked)=>{const b=document.createElement('button');b.className='rung'+(SV.beaten.includes(o.id)?' done':'');b.type='button';b.disabled=!!locked;
-    b.innerHTML=`<b>${o.name}</b><em>Lv ${o.lvl}</em><small>HP ${o.hp} · BP ${o.bp} · ${o.slots} commands${locked?' · beat the previous opponent first':''}</small>`;
+    b.innerHTML=`<b>${o.name}</b><em>Lv ${o.lvl}</em><small>HP ${o.hp} · BP ${o.bp}${MODE==='free'?'':` · ${o.slots} commands`}${locked?' · beat the previous opponent first':''}</small>`;
     b.addEventListener('click',()=>{audioInit();startBattle(o);});r.append(b);};
   mk(sp,false);
   OPPONENTS.forEach((o,i)=>mk(o,i>0&&!SV.beaten.includes(OPPONENTS[i-1].id)));
@@ -250,13 +296,15 @@ function showLadder(){
 }
 $('bPlay').addEventListener('click',()=>{audioInit();showLadder();});
 $('bNext').addEventListener('click',()=>showLadder());
+$('bMode').addEventListener('click',()=>showTitle());
 $('tReset').addEventListener('click',()=>{T={...TUNE_DEF};try{localStorage.removeItem('kiduel-tune');}catch(e){}Object.keys(T).forEach(k=>$('tn-'+k).value=T[k]);});
 $('tLvl').addEventListener('click',()=>{SV.lvl++;SV.xp=0;save();if(phase==='ladder')showLadder();});
 $('tWipe').addEventListener('click',()=>{SV={...SAVE_DEF,beaten:[]};save();if(phase==='ladder')showLadder();});
 
 /* ================= INPUT ================= */
-const keys={up:0,down:0,left:0,right:0,a:0,b:0};
-const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',KeyJ:'a',Space:'a',KeyZ:'a',KeyK:'b',ShiftLeft:'b',ShiftRight:'b',KeyX:'b'};
+const keys={up:0,down:0,left:0,right:0,a:0,b:0,c:0,p:0};
+// c (ki blast) and p (power up) are Free Fight buttons; Command Battle ignores them
+const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',KeyJ:'a',Space:'a',KeyZ:'a',KeyK:'b',ShiftLeft:'b',ShiftRight:'b',KeyX:'b',KeyL:'c',KeyC:'c',KeyI:'p',KeyV:'p'};
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return;
   const k=KEYMAP[e.code];
@@ -281,6 +329,16 @@ function press(k,down){
   }
   if(phase!=='fight')return;
   const p=B.p;
+  if(B.mode==='free'){
+    if(k==='a'&&down&&!was)freeMelee(p);
+    if(k==='c'&&down&&!was)freeBlastDown(p);
+    if(k==='c'&&!down)freeBlastUp(p);
+    if(k==='p'&&down&&!was)freePowerDown(p);
+    if(k==='p'&&!down)freePowerUp(p);
+    if(k==='b'&&down&&!was){freePowerUp(p);bDown(p,inputVec());}
+    if(k==='b'&&!down)bUp(p);
+    return;
+  }
   if(k==='a'&&down&&!was)aDown(p);
   if(k==='a'&&!down)aUp(p);
   if(k==='b'&&down&&!was)bDown(p,inputVec());
@@ -289,8 +347,8 @@ function press(k,down){
 function inputVec(){return {x:keys.right-keys.left,y:keys.down-keys.up};}
 // touch pad
 document.querySelectorAll('#pad [data-k]').forEach(b=>{const k=b.dataset.k;b.addEventListener('pointerdown',e=>{e.preventDefault();press(k,true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>press(k,false)));});
-[['tA','a'],['tB','b']].forEach(([id,k])=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();press(k,true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>press(k,false)));});
-function showPad(on){$('pad').classList.toggle('on',on);}
+[['tA','a'],['tB','b'],['tC','c'],['tP','p']].forEach(([id,k])=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();press(k,true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>press(k,false)));});
+function showPad(on){$('pad').classList.toggle('on',on);$('pad').classList.toggle('free',!!(on&&B&&B.mode==='free'));}
 cv.addEventListener('pointerdown',e=>{
   audioInit();if(phase!=='select')return;
   const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
@@ -325,10 +383,13 @@ function aDown(f){
   else exec(f,id,0);
 }
 function aUp(f){if(f.charging){const id=f.charging,g=f.gauge;f.charging=null;exec(f,id,g);}}
+const dashKi=()=>B.mode==='free'?T.freeDashKi:T.dodgeKi;
 function bDown(f,v){
   if(f.steer){f.steer=null;return;}
   if(f.anim||f.hurt>0||f.charging)return;
-  if((v.x||v.y)&&f.ki>=T.dodgeKi){f.ki-=T.dodgeKi;f.dodge=.2;f.dvx=v.x;f.dvy=v.y;const l=Math.hypot(v.x,v.y);f.dvx/=l;f.dvy/=l;sfx.dodge();return;}
+  const dk=dashKi();
+  if((v.x||v.y)&&B.mode==='free'&&f.ki<dk){noKi(f);return;}   // Free Fight: a dash with no ki says so instead of guarding
+  if((v.x||v.y)&&f.ki>=dk){f.ki-=dk;f.dodge=.2;f.dvx=v.x;f.dvy=v.y;const l=Math.hypot(v.x,v.y);f.dvx/=l;f.dvy/=l;sfx.dodge();return;}
   f.guarding=true;f.guardG=1;setPose(f,'guard',99);
 }
 function bUp(f){if(f.guarding){f.guarding=false;f.guardG=1;setPose(f,'idle',0);}}
@@ -362,6 +423,7 @@ function damage(att,def,c,g,pos){
   const bpA=att.bp*(1+(isMelee?0:g*T.chargeBP));
   let d=T.dmgBase*c.power*gMul*bonus*Math.pow(bpA/def.bp,T.bpExponent)*rand(.9,1.1);
   if(def.guarding)popText(def,'GUARD BREAK!',KI);
+  if(B.mode==='free')d*=T.freeDmg;   // hits come much faster without a command list, so each one hurts less
   d=Math.round(d);def.hp=Math.max(0,def.hp-d);
   def.hurt=.32;def.charging=null;def.guarding=false;if(def.anim&&CMDS[def.anim.id].kind==='charge')def.anim=null;
   setPose(def,'hurt',.6);
@@ -375,10 +437,11 @@ function popText(f,text,c){B.pops.push({x:f.x,y:f.y-.06,t:0,text,c,word:true});}
 
 function updFighter(f,dt,moveVec){
   const foe=f===B.p?B.e:B.p;f.moving=false;
-  f.hurt=Math.max(0,f.hurt-dt);f.poseT-=dt;if(f.poseT<=0&&!f.guarding&&!f.charging)f.pose='idle';
+  f.hurt=Math.max(0,f.hurt-dt);f.poseT-=dt;if(f.poseT<=0&&!f.guarding&&!f.charging)f.pose=f.powering?'charge':'idle';
   f.shoutT-=dt;f.reveal=Math.max(0,f.reveal-dt);
-  if(!f.charging&&!f.guarding&&!(f.anim&&f.anim.id==='power'))f.ki=Math.min(T.kiMax,f.ki+T.kiRegen*dt);
-  if(f.charging){f.gauge+=dt/T.gaugeLoop;if(f.gauge>=1)f.gauge-=1;}  // the gauge loops back to empty
+  const free=B.mode==='free',regen=free?(f.powering?(f.hurt>0?0:T.freePowerKi):T.freeKiRegen):T.kiRegen;
+  if(!f.charging&&!f.guarding&&!(f.anim&&f.anim.id==='power'))f.ki=Math.min(T.kiMax,f.ki+regen*dt);
+  if(f.charging){f.gauge+=dt/T.gaugeLoop;if(f.gauge>=1)f.gauge=free?1:f.gauge-1;}  // the gauge loops back to empty (Free Fight: it stays full)
   if(f.guarding){f.guardG-=dt/T.guardLoop;if(f.guardG<=0)f.guardG+=1;}
   f.trail.unshift({x:f.x,y:f.y});if(f.trail.length>6)f.trail.pop();
   if(f.dodge>0){f.dodge-=dt;f.x+=f.dvx*T.dashSpeed*1.3*dt;f.y+=f.dvy*T.dashSpeed*1.3*dt;}
@@ -395,7 +458,7 @@ function updFighter(f,dt,moveVec){
     const p=f.steer;if(!B.proj.includes(p)){f.steer=null;}
     else if(moveVec.x||moveVec.y){const want=Math.atan2(moveVec.y,moveVec.x),cur=Math.atan2(p.vy,p.vx);let d=((want-cur+Math.PI*3)%TAU)-Math.PI;const turn=clamp(d,-4*dt,4*dt),sp=Math.hypot(p.vx,p.vy);p.vx=Math.cos(cur+turn)*sp;p.vy=Math.sin(cur+turn)*sp;}
   }else if(f.charging){faceFromVec(f,moveVec);}   // turn to aim while charging
-  else if(!f.guarding&&f.hurt<=0&&(moveVec.x||moveVec.y)){
+  else if(!f.guarding&&!f.powering&&f.hurt<=0&&(moveVec.x||moveVec.y)){
     const l=Math.hypot(moveVec.x,moveVec.y);f.x+=moveVec.x/l*T.moveSpeed*dt;f.y+=moveVec.y/l*T.moveSpeed*dt;faceFromVec(f,moveVec);f.moving=true;
   }
   f.x=clamp(f.x,FR,1-FR);f.y=clamp(f.y,FR,1-FR);
@@ -439,12 +502,90 @@ function enemyAI(e,dt){
   }
   return mv;
 }
+/* ================= FREE FIGHT: no command list, every move costs ki ================= */
+function noKi(f){if(f.side==='p'){popText(f,'NO KI!',KI);tone('square',150,150,.08,.08);}}
+const canSpecial=f=>(f===B.p?unlocked('special'):B.opp.cmds.includes('special'))&&f.ki>=CMDS.special.ki+CMDS.special.kiCharge;
+function freeMelee(f){
+  if(f.anim&&CMDS[f.anim.id].kind==='melee'){f.buf=1;return;}   // pressed mid-swing: chain into the next hit
+  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering||f.steer)return;
+  const id=f.combo>=2&&f.comboT>0?'kick':'punch',cost=id==='kick'?T.freeKickKi:T.freePunchKi;
+  if(f.ki<cost){noKi(f);return;}
+  f.ki-=cost;f.combo=id==='kick'?0:(f.comboT>0?f.combo+1:1);f.comboT=0;
+  exec(f,id,0);
+}
+function freeBlastDown(f){
+  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering||f.steer)return;
+  if(f.ki<CMDS.sshot.ki){noKi(f);return;}
+  f.charging='sshot';f.gauge=0;sfx.charge();setPose(f,'charge',99);
+}
+function freeBlastUp(f){
+  if(!f.charging)return;
+  const g=f.gauge,id=g>=1&&canSpecial(f)?'special':'sshot';
+  f.charging=null;exec(f,id,g);
+}
+function freePowerDown(f){
+  if(busy(f)||f.guarding||f.powering)return;
+  f.powering=true;f.sndT=0;setPose(f,'charge',99);
+}
+function freePowerUp(f){if(f.powering){f.powering=false;setPose(f,'idle',0);}}
+function freeTick(f,dt){
+  // combo window opens when a swing ends; a buffered press fires the next hit right away
+  const swinging=!!(f.anim&&CMDS[f.anim.id].kind==='melee');
+  if(f.wasSwinging&&!swinging){f.comboT=T.comboWindow;if(f.buf){f.buf=0;freeMelee(f);}}
+  f.wasSwinging=!!(f.anim&&CMDS[f.anim.id].kind==='melee');
+  if(!f.wasSwinging)f.buf=0;
+  f.comboT=Math.max(0,f.comboT-dt);if(f.comboT<=0&&!f.wasSwinging)f.combo=0;
+  // holding power up through a hit or a swing resumes it as soon as you're free
+  if(f===B.p&&keys.p&&!f.powering&&!busy(f)&&!f.guarding)freePowerDown(f);
+  if(f.powering&&f.hurt<=0){f.sndT-=dt;if(f.sndT<=0){f.sndT=.35;sfx.charge();}}
+}
+function freeAI(e,dt){
+  const p=B.p,dx=p.x-e.x,dy=p.y-e.y,dist=Math.hypot(dx,dy),lv=B.opp.lvl;
+  const face=()=>faceFromVec(e,{x:Math.abs(dx)>.04?Math.sign(dx):0,y:Math.abs(dy)>.04?Math.sign(dy):0});
+  let mv={x:0,y:0};
+  // defense: incoming shots and your swings, same reflexes as in Command Battle
+  const threat=B.proj.find(q=>q.owner===p&&Math.hypot(q.x-e.x,q.y-e.y)<.26&&((q.vx*(e.x-q.x)+q.vy*(e.y-q.y))>0))
+    ||(p.anim&&CMDS[p.anim.id].kind==='melee'&&dist<.16?{vx:-dx,vy:-dy}:null);
+  if(threat&&!e.guarding&&!e.anim&&!e.charging&&e.hurt<=0&&e.dodge<=0&&Math.random()<dt*(2+lv*.35)){
+    freePowerUp(e);
+    if(Math.random()<.45&&e.ki>=dashKi()){const sx=-threat.vy,sy=threat.vx,l=Math.hypot(sx,sy)||1;bDown(e,{x:Math.sign(sx/l)||1,y:Math.sign(sy/l)});}
+    else{bDown(e,{x:0,y:0});e.guardRelease=rand(.15,.6);}
+  }
+  if(e.guarding){e.guardRelease-=dt;if(e.guardRelease<=0)bUp(e);return mv;}
+  if(e.powering){if(e.ki>=e.kiGoal||dist<.2)freePowerUp(e);return mv;}
+  if(e.charging){face();if(e.gauge>=e.goalG)freeBlastUp(e);return mv;}
+  if(busy(e))return mv;
+  e.cool-=dt;
+  // out of ki: back off and power up once there is room
+  if(e.ki<Math.max(T.freeKickKi,CMDS.sshot.ki)+4){
+    if(dist<.14&&e.ki>=T.freePunchKi&&e.cool<=0){face();freeMelee(e);e.cool=rand(.2,.5);}   // cornered: swing with what's left
+    else if(dist>.3){if(e.cool<=0){e.kiGoal=rand(.6,1)*T.kiMax;freePowerDown(e);}}else mv={x:-dx,y:-dy};
+    return mv;
+  }
+  // switch between rushing in and keeping range every few seconds, weighted by his move list
+  e.planT=(e.planT||0)-dt;
+  if(e.planT<=0){const m=B.opp.cmds.filter(id=>CMDS[id].kind==='melee').length/B.opp.cmds.length;e.plan=Math.random()<m?'melee':'blast';e.planT=rand(2,4);}
+  if(e.plan==='melee'){
+    if(dist>CMDS.punch.range+FR*.8)mv={x:dx,y:dy};
+    else if(e.cool<=0){face();freeMelee(e);
+      e.cool=e.combo===0?rand(T.enemyDelayMin,T.enemyDelayMax)*.7:rand(.05,.3)/(1+lv*.05);}  // chain the combo, then breathe
+  }else{
+    if(dist<.28)mv={x:-dx,y:-dy};else if(dist>.6)mv={x:dx,y:dy};
+    else{const ax=Math.abs(dx),ay=Math.abs(dy);mv=ax<ay?{x:dx,y:0}:{x:0,y:dy};if(Math.abs(ax-ay)<Math.min(ax,ay))mv={x:0,y:0};}
+    const aligned=Math.min(Math.abs(dx),Math.abs(dy),Math.abs(Math.abs(dx)-Math.abs(dy)))<.05;
+    if(e.cool<=0&&aligned){face();e.goalG=canSpecial(e)&&Math.random()<.4?1:Math.random()<.4?rand(.02,.15):rand(.35,.95);freeBlastDown(e);e.cool=rand(T.enemyDelayMin,T.enemyDelayMax);}
+  }
+  return mv;
+}
+
 function updateFight(dt){
   B.roundT+=dt;
+  const free=B.mode==='free';
   const pv=B.p.steer?inputVec():inputVec();
   updFighter(B.p,dt,pv);
-  const ev=enemyAI(B.e,dt);
+  const ev=free?freeAI(B.e,dt):enemyAI(B.e,dt);
   updFighter(B.e,dt,ev);
+  if(free){freeTick(B.p,dt);freeTick(B.e,dt);}
   // fighters can't overlap
   const dx=B.e.x-B.p.x,dy=B.e.y-B.p.y,d=Math.hypot(dx,dy);if(d<FR*2&&d>0){const push=(FR*2-d)/2;B.e.x+=dx/d*push;B.e.y+=dy/d*push;B.p.x-=dx/d*push;B.p.y-=dy/d*push;}
   // projectiles
@@ -462,7 +603,7 @@ function updateFight(dt){
   B.pops.forEach(p=>p.t+=dt);B.pops=B.pops.filter(p=>p.t<1);
   if(B.p.hp<=0||B.e.hp<=0){phase='ko';pt=0;B.result=B.e.hp<=0;sfx.ko();return;}
   const out=f=>f.qi>=f.queue.length&&!busy(f);
-  if(B.roundT>=T.roundTime||(out(B.p)&&out(B.e)&&!B.proj.length)){phase='roundEnd';pt=0;}
+  if(!free&&(B.roundT>=T.roundTime||(out(B.p)&&out(B.e)&&!B.proj.length))){phase='roundEnd';pt=0;}  // Free Fight runs until someone drops
 }
 
 /* ================= DRAWING ================= */
@@ -667,17 +808,25 @@ function sidePanel(S,f,mirror){
   const bh=Math.round(clamp(S.h*.07,12,20)),gap=bh*.7;let y=S.y+4;
   txt('KI',x0,y+bh/2,bh*.95,INK,al);y+=bh+4;
   drawBar(S.x,y,S.w,bh,f.ki/T.kiMax,LEAF);y+=bh+gap;
+  const free=B.mode==='free',spec=free&&f.charging&&f.gauge>=1&&canSpecial(f);
   const gv=f.charging?f.gauge:f.guarding?f.guardG:0;
-  txt(f.charging?'POWER':f.guarding?'GUARD':'GAUGE',x0,y+bh/2,bh*.85,INK,al);y+=bh+4;
-  drawBar(S.x,y,S.w,bh,gv,f.charging?KI:ORB);y+=bh+gap*1.4;
-  // current command: yours is visible, his is "?" except for a moment when he uses one
+  txt(spec?'SPECIAL!':f.charging?'POWER':f.guarding?'GUARD':f.powering?'POWERING UP':'GAUGE',x0,y+bh/2,bh*.85,spec?KI:INK,al);y+=bh+4;
+  drawBar(S.x,y,S.w,bh,gv,f.charging&&!spec?KI:ORB);y+=bh+gap*1.4;
   const is=Math.min(S.w*.36,S.h*.24);const ix=mirror?S.x+S.w-is:S.x;
+  const tx=mirror?ix-10:ix+is+10,tal=mirror?'right':'left';
+  if(free){
+    // no hidden commands: both sides show the move they just used, and the combo count
+    const id=f.reveal>0?f.lastCmd:null;
+    if(id)drawIcon(id,ix,y,is,{});else{rr(ix,y,is,is,is*.14);ctx.fillStyle='rgba(27,21,18,.06)';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(27,21,18,.3)';ctx.stroke();}
+    if(f.combo>0){txt('COMBO',tx,y+is*.28,bh*.75,INK,tal);comic(String(f.combo),tx+(mirror?-14:14),y+is*.68,Math.round(is*.42),SUN,'center');}
+  }else{
+  // current command: yours is visible, his is "?" except for a moment when he uses one
   const id=f.side==='p'?nextCmd(f):(f.reveal>0?f.lastCmd:null);
   drawIcon(id||(f.side==='p'?null:null),ix,y,is,{});
   if(f.side==='p'&&!id){rr(ix,y,is,is,is*.14);ctx.fillStyle='#ddd';ctx.fill();ink(2);txt('—',ix+is/2,y+is/2,is*.4,INK,'center');}
   const left=f.queue.length-f.qi;
-  const tx=mirror?ix-10:ix+is+10,tal=mirror?'right':'left';
   txt('LEFT',tx,y+is*.28,bh*.75,INK,tal);comic(String(Math.max(0,left)),tx+(mirror?-14:14),y+is*.68,Math.round(is*.42),SUN,'center');
+  }
   y+=is+gap*1.4;
   const ns=Math.round(clamp(S.h*.09,16,30));
   txt('HP',x0,y+ns*.5,bh*.9,INK,al);y+=bh;comic(String(Math.ceil(f.hp)),mirror?S.x+S.w:S.x,y+ns*.6,ns,f.hp<f.hpMax*.3?KI:'#fff',al);y+=ns*1.3;
@@ -725,6 +874,7 @@ function topPose(f){
   if(f.hurt>0)return 9;
   if(f.dodge>0)return 3;
   if(f.anim){const id=f.anim.id;if(id==='punch')return 4;if(id==='kick')return 5;if(id==='power')return 11;}
+  if(f.powering)return 11;
   if(f.charging)return 6;
   if(f.steer)return 7;
   if(f.pose==='attack'&&f.lastCmd&&['ctrl','beam'].includes(CMDS[f.lastCmd].kind))return 7;
@@ -748,6 +898,7 @@ function drawFighter(f,F,toS){
     const a=toS(f.x,f.y),r=FR*F.s,idx=topPose(f);
     if(f.dodge>0)f.trail.forEach((t,i)=>{if(i%2)return;const b=toS(t.x,t.y);drawTopSprite(f,b.x,b.y,r,3,.3*(1-i/6));});
     if(f.charging){circ(a.x,a.y,r*(1.4+f.gauge*1.2));ctx.fillStyle='rgba(255,90,42,.22)';ctx.fill();}
+    if(f.powering){circ(a.x,a.y,r*(1.9+Math.sin(gt*22)*.15));ctx.fillStyle='rgba(255,210,58,.35)';ctx.fill();}
     ctx.fillStyle='rgba(60,35,15,.28)';ctx.beginPath();ctx.ellipse(a.x+r*.25,a.y+r*.35,r*1.05,r*.8,0,0,TAU);ctx.fill();
     const j=f.hurt>0?(Math.random()-.5)*4:0;
     drawTopSprite(f,a.x+j,a.y,r,idx);
@@ -755,7 +906,7 @@ function drawFighter(f,F,toS){
   }
   const a=toS(f.x,f.y),r=FR*F.s,isP=f.side==='p';
   if(f.dodge>0)f.trail.forEach((t,i)=>{const b=toS(t.x,t.y);circ(b.x,b.y,r);ctx.globalAlpha=.25*(1-i/6);ctx.fillStyle=isP?'#2b7f8e':B.opp.color;ctx.fill();ctx.globalAlpha=1;});
-  if(f.charging||(f.anim&&f.anim.id==='power')){const g=f.charging?f.gauge:.7;circ(a.x,a.y,r*(1.4+g*1.2));ctx.fillStyle=f.charging?'rgba(255,90,42,.25)':'rgba(255,210,58,.35)';ctx.fill();}
+  if(f.charging||f.powering||(f.anim&&f.anim.id==='power')){const g=f.charging?f.gauge:.7;circ(a.x,a.y,r*(1.4+g*1.2));ctx.fillStyle=f.charging?'rgba(255,90,42,.25)':'rgba(255,210,58,.35)';ctx.fill();}
   ctx.fillStyle='rgba(60,35,15,.3)';ctx.beginPath();ctx.ellipse(a.x,a.y+r*.7,r,r*.35,0,0,TAU);ctx.fill();
   const hurt=f.hurt>0?(Math.random()-.5)*4:0;
   circ(a.x+hurt,a.y,r);ctx.fillStyle=f.hurt>0?'#fff':isP?'#2b7f8e':B.opp.color;ctx.fill();ink(2.5);
@@ -815,8 +966,8 @@ function draw(){
   drawField(L.F);
   if(phase==='select')drawSelect(L);
   const F=L.F;
-  if(phase==='intro')comic(pt<.6?`ROUND ${B.round}`:'FIGHT!',F.x+F.s/2,F.y+F.s/2,Math.round(F.s*.14),pt<.6?'#fff':SUN,'center',-.05);
-  if(phase==='fight'){const left=Math.max(0,T.roundTime-B.roundT);comic(left.toFixed(0),F.x+F.s/2,F.y+F.s*.06,Math.round(F.s*.07),left<5?KI:'#fff');}
+  if(phase==='intro')comic(pt<.6?(B.mode==='free'?'READY?':`ROUND ${B.round}`):'FIGHT!',F.x+F.s/2,F.y+F.s/2,Math.round(F.s*.14),pt<.6?'#fff':SUN,'center',-.05);
+  if(phase==='fight'&&B.mode!=='free'){const left=Math.max(0,T.roundTime-B.roundT);comic(left.toFixed(0),F.x+F.s/2,F.y+F.s*.06,Math.round(F.s*.07),left<5?KI:'#fff');}
   if(phase==='roundEnd')comic('ROUND OVER',F.x+F.s/2,F.y+F.s/2,Math.round(F.s*.11),'#fff','center',-.04);
   if(phase==='ko')comic(B.result?'K.O.!':'DOWN!',F.x+F.s/2,F.y+F.s/2,Math.round(F.s*.18),B.result?SUN:KI,'center',-.06);
 }
