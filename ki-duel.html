@@ -28,7 +28,7 @@ button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:28px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
 .ghost{background:#fff;border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink);padding:7px 12px;font-weight:800;font-size:13px}
 .primary:active,.ghost:active,.rung:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
-button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
+button:focus-visible,input:focus-visible,body.gp button:focus{outline:3px solid var(--ki);outline-offset:2px}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;align-items:baseline}
 .keys dt{font-family:var(--display);font-size:18px;letter-spacing:.04em;color:var(--ki);white-space:nowrap}
@@ -108,6 +108,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-off
           <dt>B: K / Shift</dt><dd>Hold to guard. It holds if your guard gauge is higher than his attack's power. Direction + B dodges, which burns ki.</dd>
           <dt>Control Shot</dt><dd>Steer it with the arrows while it flies. A or B lets go.</dd>
           <dt>Picking</dt><dd>Click or arrows + A to add, B to remove, Enter to fight.</dd>
+          <dt>PS5 controller</dt><dd>Stick or d-pad moves. □ ✕ △ use your next command, L1 guards, ○ dashes. When picking: ✕ adds, ○ removes, Options fights.</dd>
         </dl>
       </div>
       <div data-for="free" hidden>
@@ -118,8 +119,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--ki);outline-off
           <dt>B: K / Shift / X</dt><dd>Hold to guard. Hold a direction, then press B to dash (6 ki).</dd>
           <dt>C: L / C</dt><dd>Ki blast. Tap for a quick shot, hold to charge a stronger one. From level 4, a full charge with 75 ki fires the Special Beam.</dd>
           <dt>Power up: I / V</dt><dd>Hold to refill ki.</dd>
+          <dt>PS5 controller</dt><dd>□ punch · ✕ kick · ○ dash · L1 guard · L2 power up. △ charges a straight shot; hold R1 when you let go for a Control Shot you steer with the stick, R2 for the Special Beam.</dd>
         </dl>
       </div>
+      <p class="hint" id="gpHint" hidden>Controller connected. D-pad to choose, ✕ to confirm, ○ to go back.</p>
       <div class="row"><button class="primary" id="bPlay">Enter the arena</button></div>
     </div>
   </div>
@@ -382,6 +385,85 @@ function inputVec(){return {x:keys.right-keys.left,y:keys.down-keys.up};}
 document.querySelectorAll('#pad [data-k]').forEach(b=>{const k=b.dataset.k;b.addEventListener('pointerdown',e=>{e.preventDefault();press(k,true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>press(k,false)));});
 [['tA','a'],['tB','b'],['tC','c'],['tP','p']].forEach(([id,k])=>{const b=$(id);b.addEventListener('pointerdown',e=>{e.preventDefault();press(k,true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>press(k,false)));});
 function showPad(on){$('pad').classList.toggle('on',on);$('pad').classList.toggle('free',!!(on&&B&&B.mode==='free'));}
+
+/* ================= PS5 CONTROLLER (any pad with the standard layout) ================= */
+// standard mapping: 0 cross, 1 circle, 2 square, 3 triangle, 4 L1, 5 R1, 6 L2, 7 R2, 9 options, 12-15 d-pad
+const PADBTN={cross:0,circle:1,square:2,triangle:3,l1:4,r1:5,l2:6,r2:7,options:9,up:12,down:13,left:14,right:15};
+const DIRS=['up','down','left','right'];
+let padPrev={};
+function pollPad(){
+  const gp=[...(navigator.getGamepads?navigator.getGamepads():[])].find(g=>g&&g.connected);
+  $('gpHint').hidden=!gp;
+  if(!gp){if(Object.values(padPrev).some(Boolean)){for(const d of DIRS)press(d,false);press('p',false);}padPrev={};return;}
+  const held=i=>{const b=gp.buttons[i];return !!b&&(b.pressed||b.value>.5);};
+  const now={};for(const k in PADBTN)now[k]=held(PADBTN[k]);
+  // the left stick acts like the d-pad
+  const ax=gp.axes[0]||0,ay=gp.axes[1]||0,DZ=.45;
+  now.up=now.up||ay<-DZ;now.down=now.down||ay>DZ;now.left=now.left||ax<-DZ;now.right=now.right||ax>DZ;
+  const was=padPrev;padPrev=now;
+  const dn=k=>now[k]&&!was[k],up=k=>!now[k]&&was[k];
+  if(Object.keys(now).some(dn)){audioInit();document.body.classList.add('gp');}
+  const menu=menuEl();
+  if(menu){
+    for(const d of DIRS){if(dn(d))menuMove(menu,d);if(up(d))press(d,false);}
+    if(dn('cross'))menuPick(menu);
+    if(dn('circle'))menuBack(menu);
+    if(dn('options')&&menu!==$('ladder')){audioInit();showLadder();}
+    return;
+  }
+  // directions go through the same keys as the keyboard: movement, aiming, steering and picking all work unchanged
+  for(const d of DIRS){if(dn(d))press(d,true);if(up(d))press(d,false);}
+  if(phase==='select'){
+    for(const k of ['cross','square','triangle']){if(dn(k))press('a',true);if(up(k))press('a',false);}
+    if(dn('circle'))press('b',true);if(up('circle'))press('b',false);
+    if(dn('options'))toFight();
+    return;
+  }
+  if(dn('l2'))press('p',true);if(up('l2'))press('p',false);   // power up (Free Fight); held through the intro it starts with the fight
+  if(phase!=='fight')return;
+  const p=B.p;
+  if(dn('circle'))padDash(p);
+  if(dn('l1')){if(B.mode==='free')freePowerUp(p);bDown(p,{x:0,y:0});}   // L1 only guards; dashing is circle
+  if((up('l1')&&!now.circle)||(up('circle')&&!now.l1))bUp(p);
+  if(B.mode==='free'){
+    if(dn('square'))freeMelee(p,'punch');
+    if(dn('cross'))freeMelee(p,'kick');
+    if(dn('triangle'))freeBlastDown(p);
+    if(up('triangle'))freeBlastUp(p,now.r2?'special':now.r1?'cshot':undefined);   // R1/R2 are read on release
+  }else{
+    for(const k of ['square','cross','triangle']){if(dn(k))press('a',true);if(up(k))press('a',false);}
+  }
+}
+function padDash(f){
+  // toward the stick, or straight ahead when it's centred
+  let v=inputVec();if(!v.x&&!v.y)v={x:f.fx,y:f.fy};
+  if(B.mode==='free')freePowerUp(f);
+  bDown(f,v);
+}
+/* menus: d-pad moves between buttons, cross presses, circle goes back */
+const menuEl=()=>['title','ladder','result'].map($).find(o=>!o.hidden);
+const menuButtons=o=>[...o.querySelectorAll('button')].filter(b=>!b.disabled&&b.offsetParent);
+const menuDefault=o=>o.querySelector('.primary')||o.querySelector('.rung:not([disabled])')||menuButtons(o)[0];
+function menuFocus(b){if(!b)return;b.focus();b.scrollIntoView({block:'nearest'});}
+function menuMove(o,d){
+  const bs=menuButtons(o),cur=bs.includes(document.activeElement)?document.activeElement:null;
+  if(!cur){menuFocus(menuDefault(o));return;}
+  const r=cur.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const vx=d==='left'?-1:d==='right'?1:0,vy=d==='up'?-1:d==='down'?1:0;
+  let best=null,bd=1e9;
+  for(const b of bs){if(b===cur)continue;const q=b.getBoundingClientRect(),dx=q.left+q.width/2-cx,dy=q.top+q.height/2-cy;
+    const along=dx*vx+dy*vy;if(along<=4)continue;const score=along+2*Math.abs(vx?dy:dx);if(score<bd){bd=score;best=b;}}
+  if(best){menuFocus(best);sfx.pick();}
+}
+function menuPick(o){
+  const bs=menuButtons(o),cur=bs.includes(document.activeElement)?document.activeElement:null;
+  if(!cur){menuFocus(menuDefault(o));return;}
+  const i=bs.indexOf(cur);cur.click();
+  // the ladder redraws its buttons when you pick a format: keep the focus where it was
+  if(!o.hidden&&!o.contains(document.activeElement))menuFocus(menuButtons(o)[i]);
+}
+function menuBack(o){if(o===$('ladder'))showTitle();else if(o===$('result'))showLadder();}
+addEventListener('pointerdown',()=>document.body.classList.remove('gp'));
 cv.addEventListener('pointerdown',e=>{
   audioInit();if(phase!=='select')return;
   const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
@@ -544,22 +626,32 @@ function enemyAI(e,dt){
 /* ================= FREE FIGHT: no command list, every move costs ki ================= */
 function noKi(f){if(f.side==='p'){popText(f,'NO KI!',KI);tone('square',150,150,.08,.08);}}
 const canSpecial=f=>(f===B.p?unlocked('special'):f.opp.cmds.includes('special'))&&f.ki>=CMDS.special.ki+CMDS.special.kiCharge;
-function freeMelee(f){
-  if(f.anim&&CMDS[f.anim.id].kind==='melee'){f.buf=1;return;}   // pressed mid-swing: chain into the next hit
-  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering||f.steer)return;
-  const id=f.combo>=2&&f.comboT>0?'kick':'punch',cost=id==='kick'?T.freeKickKi:T.freePunchKi;
+function freeMelee(f,force){
+  // force: 'punch' or 'kick' from the controller's own buttons; without it the keyboard chain is punch, punch, kick
+  if(f.steer){f.steer=null;return;}   // first press lets go of a steered shot
+  if(f.anim&&CMDS[f.anim.id].kind==='melee'){f.buf=force||1;return;}   // pressed mid-swing: chain into the next hit
+  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering)return;
+  const id=force||(f.combo>=2&&f.comboT>0?'kick':'punch'),cost=id==='kick'?T.freeKickKi:T.freePunchKi;
   if(f.ki<cost){noKi(f);return;}
-  f.ki-=cost;f.combo=id==='kick'?0:(f.comboT>0?f.combo+1:1);f.comboT=0;
+  f.ki-=cost;f.combo=id==='kick'&&!force?0:(f.comboT>0?f.combo+1:1);f.comboT=0;
   exec(f,id,0);
 }
 function freeBlastDown(f){
-  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering||f.steer)return;
+  if(f.steer){f.steer=null;return;}
+  if(f.anim||f.hurt>0||f.dodge>0||f.charging||f.guarding||f.powering)return;
   if(f.ki<CMDS.sshot.ki){noKi(f);return;}
   f.charging='sshot';f.gauge=0;sfx.charge();setPose(f,'charge',99);
 }
-function freeBlastUp(f){
+function freeBlastUp(f,want){
+  // want: 'cshot' (controller triangle + R1) or 'special' (triangle + R2); otherwise a full charge turns into the Special Beam when it can
   if(!f.charging)return;
-  const g=f.gauge,id=g>=1&&canSpecial(f)?'special':'sshot';
+  const g=f.gauge;let id=g>=1&&canSpecial(f)?'special':'sshot';
+  if(want==='cshot')id='cshot';
+  if(want==='special'){
+    if(f===B.p&&!unlocked('special'))popText(f,`SPECIAL AT LV ${CMDS.special.unlock}`,'#fff');
+    else if(f.ki<CMDS.special.ki)noKi(f);
+    else id='special';
+  }
   f.charging=null;exec(f,id,g);
 }
 function freePowerDown(f){
@@ -570,7 +662,7 @@ function freePowerUp(f){if(f.powering){f.powering=false;setPose(f,'idle',0);}}
 function freeTick(f,dt){
   // combo window opens when a swing ends; a buffered press fires the next hit right away
   const swinging=!!(f.anim&&CMDS[f.anim.id].kind==='melee');
-  if(f.wasSwinging&&!swinging){f.comboT=T.comboWindow;if(f.buf){f.buf=0;freeMelee(f);}}
+  if(f.wasSwinging&&!swinging){f.comboT=T.comboWindow;if(f.buf){const b=f.buf;f.buf=0;freeMelee(f,b===1?undefined:b);}}
   f.wasSwinging=!!(f.anim&&CMDS[f.anim.id].kind==='melee');
   if(!f.wasSwinging)f.buf=0;
   f.comboT=Math.max(0,f.comboT-dt);if(f.comboT<=0&&!f.wasSwinging)f.combo=0;
@@ -1026,6 +1118,7 @@ function drawSelect(L){
 let last=performance.now();
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;gt+=dt;pt+=dt;
+  pollPad();
   if(B){
     if(phase==='fight')updateFight(dt);
     else if(phase==='intro'){if(pt>1.2){phase='fight';pt=0;B.roundT=0;}for(const f of B.fs){f.shoutT-=dt;f.poseT-=dt;if(f.poseT<=0)f.pose='idle';}}
