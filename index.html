@@ -134,7 +134,7 @@ TOGGLES.forEach(([k,label,opts])=>{
   tb.appendChild(fs);
 });
 const spr=document.createElement('div');spr.className='tg';
-spr.innerHTML=`<div class="eyebrow">Hero sprites</div><p class="hint" id="sheetHint">Loading assets/hero-front.png…</p><p class="hint" id="backHint">Loading assets/hero-back.png…</p>`;
+spr.innerHTML=`<div class="eyebrow">Hero sprites</div><p class="hint" id="sheetHint">Loading assets/hero-front2.png…</p><p class="hint" id="backHint">Loading assets/hero-back2.png…</p>`;
 tb.appendChild(spr);
 
 const pl=document.createElement('div');pl.className='tg';
@@ -174,15 +174,15 @@ function sliceSheet(img){
 function loadSheetURL(url,persist){
   const img=new Image();
   img.onload=()=>{
-    try{SPR=sliceSheet(img);}catch(e){SPR=null;$('sheetHint').textContent='Could not read hero-front.png. Open the page through a web server, not as a local file.';return;}
-    $('sheetHint').textContent=SPR.opaque?'hero-front.png loaded, but it has no transparency.':'hero-front.png: 9 poses loaded.';
+    try{SPR=sliceSheet(img);}catch(e){SPR=null;$('sheetHint').textContent='Could not read hero-front2.png. Open the page through a web server, not as a local file.';return;}
+    $('sheetHint').textContent=SPR.opaque?'hero-front2.png loaded, but it has no transparency.':'hero-front2.png: 9 poses loaded.';
     if(persist){try{localStorage.setItem('worldorb-sheet',url);}catch(e){$('sheetHint').textContent+=' (Too big to remember; reload it next time.)';}}
   };
-  img.onerror=()=>{$('sheetHint').textContent='assets/hero-front.png not found. Using the placeholder hero.';};
+  img.onerror=()=>{$('sheetHint').textContent='assets/hero-front2.png not found. Using the placeholder hero.';};
   img.src=url;
 }
 try{localStorage.removeItem('worldorb-sheet');localStorage.removeItem('worldorb-back');}catch(e){}
-loadSheetURL('assets/hero-front.png',false);
+loadSheetURL('assets/hero-front2.png',false);
 let BACK=null;
 function sliceStrip(img){
   const m=Math.min(1,1800/img.naturalWidth),W0=Math.round(img.naturalWidth*m),H0=Math.round(img.naturalHeight*m);
@@ -204,14 +204,14 @@ function sliceStrip(img){
 function loadBackURL(url,persist){
   const img=new Image();
   img.onload=()=>{
-    try{BACK=sliceStrip(img);}catch(e){BACK=null;$('backHint').textContent='Could not read hero-back.png (needs 3 poses in a row, and a web server, not a local file).';return;}
-    $('backHint').textContent='hero-back.png: 3 poses loaded.';
+    try{BACK=sliceStrip(img);}catch(e){BACK=null;$('backHint').textContent='Could not read hero-back2.png (needs 3 poses in a row, and a web server, not a local file).';return;}
+    $('backHint').textContent='hero-back2.png: 3 poses loaded.';
     if(persist){try{localStorage.setItem('worldorb-back',url);}catch(e){$('backHint').textContent='Loaded 3 poses. Too big to remember; load it again next time.';}}
   };
-  img.onerror=()=>{$('backHint').textContent='assets/hero-back.png not found. Phase 1 uses the front sheet or the placeholder.';};
+  img.onerror=()=>{$('backHint').textContent='assets/hero-back2.png not found. Phase 1 uses the front sheet or the placeholder.';};
   img.src=url;
 }
-loadBackURL('assets/hero-back.png',false);
+loadBackURL('assets/hero-back2.png',false);
 function drawCanvasSprite(s,x,feetY,h,o={}){
   const w=s.width*h/s.height;ctx.save();if(o.glow){ctx.shadowColor=`rgba(159,232,255,${o.glow})`;ctx.shadowBlur=26;}
   ctx.drawImage(s,x-w/2+(o.tremble?(Math.random()-.5)*o.tremble:0),feetY-h,w,h);ctx.restore();
