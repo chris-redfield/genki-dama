@@ -1,12 +1,13 @@
-<title>World Orb Prototype</title>
+<meta charset="utf-8">
+<title>Vô votar no 13!</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bangers&family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Titan+One&family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
 <style>
 /* Layout: one full-bleed canvas stage; HUD drawn in canvas; DOM overlays styled as manga panels (thick ink border, hard offset shadow). Single daylight look by design. */
 :root{
-  --ink:#1b1512; --paper:#fffaf0; --muted:#5e5048; --sky:#1a88f9; --sun:#ffd23a; --ki:#ff5a2a; --orb:#8fd8ff; --dust:#e8b066;
-  --display:"Bangers",Impact,"Arial Black",sans-serif;
+  --ink:#1b1512; --paper:#fffaf0; --muted:#5e5048; --sky:#1a88f9; --sun:#ffd23a; --ki:#ff5a2a; --red:#e4002b; --orb:#8fd8ff; --dust:#e8b066;
+  --display:"Titan One",Impact,"Arial Black",sans-serif;
   --body:"M PLUS Rounded 1c","Trebuchet MS",system-ui,sans-serif;
   color-scheme:light;
 }
@@ -18,12 +19,24 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 #cv{display:block;width:100%;height:100%}
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(27,21,18,.28)}
 .card{background:var(--paper);border:4px solid var(--ink);box-shadow:8px 8px 0 var(--ink);padding:22px 24px;max-width:470px;width:100%;display:flex;flex-direction:column;gap:14px;max-height:100%;overflow:auto}
-.card h1{font-family:var(--display);font-weight:400;font-size:clamp(50px,11vw,86px);line-height:.88;letter-spacing:.03em;margin:0;color:var(--sun);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:4px 4px 0 var(--ink);text-wrap:balance}
-.card h1 span{color:var(--orb)}
+#menu .card{overflow:visible;background:none;border:0;box-shadow:none;text-align:center}
+#menu .card .row{justify-content:center}
+#menu .keys{justify-content:center}
+#menu .keys dt{text-align:right}
+#menu .keys dd{text-align:left}
+/* no paper panel behind this text any more, so it carries its own ink outline */
+#menu .card p,#menu .keys dd{color:var(--paper);text-shadow:2px 2px 0 var(--ink),1px 1px 0 var(--ink),-1px 1px 0 var(--ink),1px -1px 0 var(--ink),-1px -1px 0 var(--ink)}
+#menu .howto{color:var(--paper);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink)}
+#menu .keys dt{color:var(--sun);-webkit-text-stroke:2.5px var(--ink);paint-order:stroke fill}
+.card h1{font-family:var(--display);font-weight:400;font-size:clamp(30px,10.5vw,86px);line-height:.88;letter-spacing:.03em;margin:0;color:var(--red);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:4px 4px 0 var(--ink);white-space:nowrap;text-align:center}
+.card h1 span{color:var(--red)}
 .card p{margin:0;line-height:1.55;color:var(--muted)}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;align-items:baseline}
 .keys dt{font-family:var(--display);font-size:19px;letter-spacing:.04em;color:var(--ki);white-space:nowrap}
 .keys dd{margin:0}
+.howto{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:.04em;margin:0;color:var(--ink)}
+.star{display:flex;justify-content:center;margin-top:2px}
+.star svg{display:block}
 .eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:30px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
@@ -59,7 +72,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 </style>
 
 <div id="stage">
-  <canvas id="cv" aria-label="World Orb game canvas"></canvas>
+  <canvas id="cv" aria-label="Vô votar no 13! game canvas"></canvas>
 
   <details id="tog">
     <summary>Test toggles</summary>
@@ -74,8 +87,9 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 
   <div class="overlay" id="menu">
     <div class="card">
-      <div class="eyebrow">Minigame prototype</div>
-      <h1>World <span>Orb</span></h1>
+      <h1>Vô votar no <span>13!</span></h1>
+      <div class="row"><button class="primary" id="bStart">COMEÇAR</button></div>
+      <h2 class="howto">Como jogar</h2>
       <p>Raise your hands, pull energy from the whole planet, survive the hits, then land it on him.</p>
       <dl class="keys">
         <dt>Space / Mash</dt><dd>Gather energy (tap fast)</dd>
@@ -84,8 +98,8 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
         <dt>Arrows / tap</dt><dd>Phase 2: pick the cell he'll be on</dd>
         <dt>Space / Throw</dt><dd>Release the orb</dd>
       </dl>
-      <div class="row"><button class="primary" id="bStart">Raise your hands</button></div>
       <p class="hint">Mechanics and camera options are in Test toggles, top left.</p>
+      <div class="star" aria-hidden="true"><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg></div>
     </div>
   </div>
 
@@ -104,7 +118,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 (()=>{
 const TAU=Math.PI*2, clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*t,
   rand=(a,b)=>a+Math.random()*(b-a), ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
-const DISP='Bangers, Impact, "Arial Black", sans-serif', BODY='"M PLUS Rounded 1c", "Trebuchet MS", sans-serif';
+const DISP='"Titan One", Impact, "Arial Black", sans-serif', BODY='"M PLUS Rounded 1c", "Trebuchet MS", sans-serif';
 const stage=document.getElementById('stage'), cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 let W=800,H=450,DPR=1;
@@ -112,7 +126,7 @@ function resize(){const r=stage.getBoundingClientRect();W=Math.max(300,r.width);
 addEventListener('resize',resize); resize();
 
 /* ---------- settings / toggles ---------- */
-const DEF={guard:'stop',grid:'square',aim:'shadow',throwCam:'follow',disint:'full',miss:'cold',opening:'on',planet:'toon'};
+const DEF={guard:'stop',grid:'square',aim:'shadow',throwCam:'follow',disint:'full',miss:'cold',opening:'on',planet:'toon',music:'on'};
 let S={...DEF};
 try{Object.assign(S,JSON.parse(localStorage.getItem('worldorb-toggles')||'{}'))}catch(e){}
 function saveS(){try{localStorage.setItem('worldorb-toggles',JSON.stringify(S))}catch(e){}}
@@ -125,17 +139,21 @@ const TOGGLES=[
  ['miss','Miss ending',[['cold','Cold push-in'],['plain','Plain miss']]],
  ['opening','Opening orbit shot',[['on','Play'],['off','Skip']]],
  ['planet','Planet look (if loaded)',[['toon','Toon'],['photo','Photo']]],
+ ['music','Music',[['on','On'],['off','Off']]],
 ];
 const tb=$('togBody');
 TOGGLES.forEach(([k,label,opts])=>{
   const fs=document.createElement('fieldset');fs.className='tg';
   fs.innerHTML=`<legend>${label}</legend><div class="seg">${opts.map(([v,t])=>`<label><input type="radio" id="t-${k}-${v}" name="${k}" value="${v}" ${S[k]===v?'checked':''}><span>${t}</span></label>`).join('')}</div>`;
-  fs.addEventListener('change',e=>{S[k]=e.target.value;saveS();updateTouch();});
+  fs.addEventListener('change',e=>{S[k]=e.target.value;saveS();updateTouch();if(k==='music')applyMusic();});
   tb.appendChild(fs);
 });
 const spr=document.createElement('div');spr.className='tg';
 spr.innerHTML=`<div class="eyebrow">Hero sprites</div><p class="hint" id="sheetHint">Loading assets/hero-front2.png…</p><p class="hint" id="backHint">Loading assets/hero-back2.png…</p>`;
 tb.appendChild(spr);
+const mus=document.createElement('div');mus.className='tg';
+mus.innerHTML=`<div class="eyebrow">Music</div><p class="hint" id="musicHint">Loading assets/sequencia-13.mp3…</p>`;
+tb.appendChild(mus);
 
 const pl=document.createElement('div');pl.className='tg';
 pl.innerHTML=`<div class="eyebrow">Planet image</div><div class="row"><label class="ghost" style="cursor:pointer">Load planet image<input type="file" id="planetIn" accept="image/*" hidden></label><button class="ghost" id="planetClear" type="button">Use built-in planet</button></div><p class="hint" id="planetHint">Optional. Replaces the built-in planet with any planet photo on a dark background, cropped to the globe automatically. Stays in this browser only.</p>`;
@@ -225,7 +243,7 @@ function drawHeroSprite(r,c,x,feetY,h,o={}){
 /* ---------- audio ---------- */
 let AC=null,master,humGain,noiseBuf;
 function audioInit(){
-  if(AC){if(AC.state==='suspended')AC.resume();return;}
+  if(AC){if(AC.state==='suspended')AC.resume();applyMusic();return;}
   try{
     AC=new (window.AudioContext||window.webkitAudioContext)();
     master=AC.createGain();master.gain.value=.8;master.connect(AC.destination);
@@ -236,10 +254,34 @@ function audioInit(){
     o.connect(f);o2.connect(f);f.connect(humGain).connect(master);o.start();o2.start();
     noiseBuf=AC.createBuffer(1,AC.sampleRate*2.5,AC.sampleRate);
     const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    initMusic();
   }catch(e){AC=null}
 }
 function setMaster(v,tc=.05){if(AC){master.gain.cancelScheduledValues(AC.currentTime);master.gain.setTargetAtTime(v,AC.currentTime,tc);}}
 function setHum(v){if(AC)humGain.gain.setTargetAtTime(v,AC.currentTime,.3);}
+/* background music. It hangs off master on purpose: the silence beats that
+   setMaster(0) creates (toSilence, and the pause before each boom) must cut
+   the song too, or they stop reading as silence. */
+const MUSIC_FILE='assets/sequencia-13.mp3', MUSIC_VOL=.34;
+let MUSIC=null,musicGain=null;
+const musicHint=t=>{const h=$('musicHint');if(h)h.textContent=t;};
+function initMusic(){
+  musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
+  MUSIC=new Audio(MUSIC_FILE);MUSIC.loop=true;MUSIC.preload='auto';
+  MUSIC.addEventListener('canplay',()=>musicHint('sequencia-13.mp3 loaded.'),{once:true});
+  MUSIC.addEventListener('error',()=>{MUSIC=null;musicHint(MUSIC_FILE+' not found. The game runs without music.');});
+  try{AC.createMediaElementSource(MUSIC).connect(musicGain);}
+  catch(e){MUSIC=null;musicHint('Could not route the music. Open the page through a web server, not as a local file.');return;}
+  applyMusic();
+}
+function applyMusic(){
+  if(!AC||!MUSIC)return;
+  const on=S.music!=='off';
+  musicGain.gain.cancelScheduledValues(AC.currentTime);
+  musicGain.gain.setTargetAtTime(on?MUSIC_VOL:0,AC.currentTime,.08);
+  if(on)MUSIC.play().catch(()=>musicHint('Music is blocked until you click or press a key.'));
+  else setTimeout(()=>{if(S.music==='off'&&MUSIC)MUSIC.pause();},300);
+}
 function tone(type,f0,f1,dur,vol,delay=0){
   if(!AC)return;const t=AC.currentTime+delay;const o=AC.createOscillator();o.type=type;
   o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
