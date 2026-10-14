@@ -20,6 +20,9 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(27,21,18,.28)}
 .card{background:var(--paper);border:4px solid var(--ink);box-shadow:8px 8px 0 var(--ink);padding:22px 24px;max-width:470px;width:100%;display:flex;flex-direction:column;gap:14px;max-height:100%;overflow:auto}
 #menu .card{overflow:visible;background:none;border:0;box-shadow:none;text-align:center}
+/* the title is wider than the card on purpose, so give it its own full-width
+   box to centre inside - centring inside the narrow card box just overflows right */
+#menu .card h1{width:100vw;max-width:none;position:relative;left:50%;transform:translateX(-50%)}
 #menu .card .row{justify-content:center}
 #menu .keys{justify-content:center}
 #menu .keys dt{text-align:right}
@@ -37,6 +40,7 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 .howto{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:.04em;margin:0;color:var(--ink)}
 .star{display:flex;justify-content:center;margin-top:2px}
 .star svg{display:block}
+#titleSpr{display:block;margin:0 auto;height:clamp(92px,17vh,165px);width:auto}
 .eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:30px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
@@ -100,6 +104,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
       </dl>
       <p class="hint">Mechanics and camera options are in Test toggles, top left.</p>
       <div class="star" aria-hidden="true"><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg></div>
+      <img id="titleSpr" alt="" hidden>
     </div>
   </div>
 
@@ -230,6 +235,13 @@ function loadBackURL(url,persist){
   img.src=url;
 }
 loadBackURL('assets/hero-back2.png',false);
+/* Title-screen character: the sheet holds the same figure at three scales on green.
+   sliceStrip already keys green and splits a row into figures, so reuse it and keep
+   the last (smallest) one. */
+(()=>{const i=new Image();
+  i.onload=()=>{try{const f=sliceStrip(i),c=f[f.length-1],el=$('titleSpr');
+    el.src=c.toDataURL('image/png');el.hidden=false;}catch(e){}};
+  i.src=encodeURI('assets/new/Three Stern Suit-Wearing Elders.png');})();
 function drawCanvasSprite(s,x,feetY,h,o={}){
   const w=s.width*h/s.height;ctx.save();if(o.glow){ctx.shadowColor=`rgba(159,232,255,${o.glow})`;ctx.shadowBlur=26;}
   ctx.drawImage(s,x-w/2+(o.tremble?(Math.random()-.5)*o.tremble:0),feetY-h,w,h);ctx.restore();
@@ -540,6 +552,24 @@ const INK='#1b1512', SKY='#1a88f9', DUST='#e8b066', DUST_D='#d6984f', ORB_B='#8f
 const EN={skin:'#5d6f8f',skinD:'#45546f',armor:'#2f8f8a',armorD:'#1f6a66',bone:'#efe6cf',eye:'#ff3a2a'};
 const BG2=new Image();BG2.src='assets/bg-aftermath.jpg';BG2.hz=432/941;
 const BG1=new Image();BG1.src='assets/bg-gathering.jpg';const BG1_HZ=724/941;
+// Title screen backdrop. fundo-1.png is a tall 1024x1536 scene; the title screen
+// shows ONLY its bottom third (the horizon + ground band). The upper two thirds are
+// deliberately left unrendered here - they are for in-game use later.
+const FUNDO=new Image();FUNDO.src='assets/fundo-1.png';
+const FUNDO_PART=1/3;
+const TITLE_DROP=50;   // screen px the framing sits lower, i.e. how much extra sky shows on top
+function drawFundoTitle(){
+  if(!FUNDO.complete||!FUNDO.naturalWidth)return false;
+  const iw=FUNDO.naturalWidth,ih=FUNDO.naturalHeight;
+  const sh=Math.round(ih*FUNDO_PART);                   // bottom third, one third tall
+  const k=Math.max(W/iw,H/sh),w=iw*k,h=sh*k;            // cover-fit that crop
+  // The crop is wider than the canvas, so cover-fit is height-constrained: h===H and
+  // there is no vertical slack to slide the destination into. Push the framing down by
+  // taking the source window TITLE_DROP screen px higher up the image instead.
+  const sy=Math.max(0,ih-sh-TITLE_DROP/k);
+  ctx.drawImage(FUNDO,0,sy,iw,sh,(W-w)/2,(H-h)/2,w,h);
+  return true;
+}
 function drawBG(img,hzY,zoom=1){
   const HZ=img.hz||BG1_HZ;
   // cover-fit, horizon of the image lands on hzY
@@ -741,6 +771,12 @@ function opening(){
   label('tap or space to skip',W-16,H-16,{align:'right',size:11});
 }
 
+function titleScene(){
+  // Title screen: backdrop only. It used to borrow gatherScene, which brought the
+  // hero, the enemy, the energy orb and its ground light pool with it. A new, much
+  // smaller character sprite goes here instead.
+  if(!drawFundoTitle())drawBG(BG1,H*.76,1.1);
+}
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
   const sh=G.shake>0?G.shake*14:0;const ox=(Math.random()-.5)*sh,oy=(Math.random()-.5)*sh;
@@ -1017,7 +1053,7 @@ function pushinScene(){
 /* ---------- draw dispatch ---------- */
 function draw(){
   switch(G.phase){
-    case 'menu': gatherScene(true);break;
+    case 'menu': titleScene();break;
     case 'opening': opening();break;
     case 'gather':
       if(G.cutaway>0)cutawayScene();
