@@ -301,14 +301,16 @@ function audioInit(){
 }
 function setMaster(v,tc=.05){if(AC){master.gain.cancelScheduledValues(AC.currentTime);master.gain.setTargetAtTime(v,AC.currentTime,tc);}}
 function setHum(v){if(AC)humGain.gain.setTargetAtTime(v,AC.currentTime,.3);}
-/* background music. It hangs off master on purpose: the silence beats that
-   setMaster(0) creates (toSilence, and the pause before each boom) must cut
-   the song too, or they stop reading as silence. */
-const MUSIC_FILE='assets/sequencia-13.mp3', MUSIC_VOL=.34;
+/* Background music. It goes STRAIGHT TO THE DESTINATION, not through master.
+   master exists to be slammed to 0 for the dramatic beats -- toSilence holds it
+   there for 1.5s before toAim fades back, and both booms cut it again -- so a
+   song hanging off master drops out for a second or two every time one fires.
+   The song is continuous; only the sound effects duck. */
+const MUSIC_FILE='assets/sequencia-13.mp3', MUSIC_VOL=.27;   // .34 x master's .8, now that master is out of the path
 let MUSIC=null,musicGain=null;
 const musicHint=t=>{const h=$('musicHint');if(h)h.textContent=t;};
 function initMusic(){
-  musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
+  musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(AC.destination);
   MUSIC=new Audio(MUSIC_FILE);MUSIC.loop=true;MUSIC.preload='auto';
   MUSIC.addEventListener('canplay',()=>musicHint('sequencia-13.mp3 loaded.'),{once:true});
   MUSIC.addEventListener('error',()=>{MUSIC=null;musicHint(MUSIC_FILE+' not found. The game runs without music.');});
