@@ -35,8 +35,14 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 /* only once he is actually hovering - a man standing on sand should not bob */
 #menu.leaving #titleSpr{animation:titleBob 1.5s ease-in-out infinite}
 #menu.flying{background:transparent}
-#menu.flying #titleSpr{animation:none;transform:translateY(-135vh);
-  transition:transform var(--panMs,1625ms) cubic-bezier(.42,0,.72,.3);transition-delay:0s}
+/* The climb is an ANIMATION, not a transition. .flying removes the titleBob
+   animation and sets a new transform in one style change; Chrome takes the
+   before-change value from the running animation and refuses to start a
+   transition, so the transform snapped straight to -135vh and he vanished.
+   Firefox started it, which is why this only broke in Chrome. Swapping one
+   animation for another is defined the same way in both. */
+@keyframes titleFly{from{transform:translateY(0)}to{transform:translateY(-135vh)}}
+#menu.flying #titleSpr{animation:titleFly var(--panMs,1625ms) cubic-bezier(.42,0,.72,.3) forwards;transition:none}
 @media (prefers-reduced-motion:reduce){#menu.leaving #titleSpr{animation:none}}
 #menu .card>*:nth-child(3){transition-delay:.03s}
 #menu .card>*:nth-child(4){transition-delay:.06s}
@@ -63,7 +69,15 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 .howto{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:.04em;margin:0;color:var(--ink)}
 .star{display:flex;justify-content:center;margin-top:2px}
 .star svg{display:block}
-#titleSpr{display:block;margin:0 auto;height:clamp(92px,17vh,165px);width:auto}
+#titleSpr{position:relative;width:100%;height:clamp(92px,17vh,165px)}
+/* All three poses live in the DOM and are decoded up front. Swapping an <img>
+   src at the instant the flight transform starts made Chrome rasterise the
+   compositor layer before the new image had decoded, and it never repainted
+   during the animation - the sprite vanished for the whole climb. Firefox
+   rasterised differently and hid the bug. Switching opacity cannot race. */
+#titleSpr .pose{position:absolute;left:50%;bottom:0;transform:translateX(-50%);
+  height:100%;width:auto;opacity:0}
+#titleSpr .pose.on{opacity:1}
 .eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:30px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
@@ -124,7 +138,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
       </dl>
       <p class="hint">Mechanics and camera options are in Test toggles, top left.</p>
       <div class="star" aria-hidden="true"><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg></div>
-      <img id="titleSpr" alt="" hidden>
+      <div id="titleSpr" aria-hidden="true" hidden><img class="pose" id="poseStern" alt=""><img class="pose" id="poseHover" alt=""><img class="pose" id="poseFly" alt=""></div>
     </div>
   </div>
 
@@ -258,20 +272,27 @@ loadBackURL('assets/hero-back2.png',false);
 /* Title-screen character, two poses. Each sheet holds the same figure at three
    scales on green; sliceStrip keys the green and splits the row, and we keep the
    last (smallest) figure of each. Hovering on the menu, fist-up once he takes off. */
-let SPR_STERN=null,SPR_HOVER=null,SPR_FLY=null;
-function setTitleSprite(url){const el=$('titleSpr');if(el&&url){el.src=url;el.hidden=false;}}
-function loadTrio(file,done){const i=new Image();
-  i.onload=()=>{try{const f=sliceStrip(i);done(f[f.length-1].toDataURL('image/png'));}catch(e){}};
+const POSE={stern:$('poseStern'),hover:$('poseHover'),fly:$('poseFly')};
+function setTitleSprite(name){
+  const el=$('titleSpr');if(!el||!POSE[name]||!POSE[name].src)return;
+  for(const k in POSE)POSE[k].classList.toggle('on',k===name);
+  el.hidden=false;
+}
+function loadPose(file,el,after){const i=new Image();
+  i.onload=()=>{try{
+    const f=sliceStrip(i);el.src=f[f.length-1].toDataURL('image/png');
+    // force the decode now, while nothing is animating
+    const d=el.decode?el.decode().catch(()=>{}):Promise.resolve();
+    if(after)d.then(after);
+  }catch(e){}};
   i.src=encodeURI(file);}
 // standing on the menu...
-loadTrio('assets/new/Three Stern Suit-Wearing Elders.png',u=>{SPR_STERN=u;
-  if(INTRO.state==='idle')setTitleSprite(u);});
+loadPose('assets/new/Three Stern Suit-Wearing Elders.png',POSE.stern,
+  ()=>{if(INTRO.state==='idle')setTitleSprite('stern');});
 // ...lifting off the ground once COMECAR is hit, then climbing fist-first.
 // Both are pre-decoded so neither swap can flash mid-transition.
-loadTrio('assets/new/Arms-down hovering sprite trio.png',u=>{SPR_HOVER=u;
-  const pre=new Image();pre.src=u;});
-loadTrio('assets/new/Three-scale Lula takeoff sprite sheet.png',u=>{SPR_FLY=u;
-  const pre=new Image();pre.src=u;});
+loadPose('assets/new/Arms-down hovering sprite trio.png',POSE.hover);
+loadPose('assets/new/Three-scale Lula takeoff sprite sheet.png',POSE.fly);
 function drawCanvasSprite(s,x,feetY,h,o={}){
   const w=s.width*h/s.height;ctx.save();if(o.glow){ctx.shadowColor=`rgba(159,232,255,${o.glow})`;ctx.shadowBlur=26;}
   ctx.drawImage(s,x-w/2+(o.tremble?(Math.random()-.5)*o.tremble:0),feetY-h,w,h);ctx.restore();
@@ -824,7 +845,7 @@ function beginStart(){
   if(INTRO.state!=='idle'||G.phase!=='menu')return;
   audioInit();tone('square',520,780,.09,.07);
   INTRO.state='out';INTRO.t=0;$('menu').classList.add('leaving');
-  setTitleSprite(SPR_HOVER);   // off the ground the moment the menu starts to clear
+  setTitleSprite('hover');   // off the ground the moment the menu starts to clear
 }
 function introTick(dt){
   if(INTRO.state==='idle')return;
@@ -833,7 +854,7 @@ function introTick(dt){
     if(INTRO.t>=MENU_OUT_MS){INTRO.state='pan';INTRO.t=0;
       // the menu stays in the DOM so he can keep flying over the climbing sky;
       // everything else is already parked off screen by the swipe
-      $('menu').classList.add('flying');setTitleSprite(SPR_FLY);tone('sine',200,560,1.3,.1);}
+      $('menu').classList.add('flying');setTitleSprite('fly');tone('sine',200,560,1.3,.1);}
   }else if(INTRO.t>=SKY_PAN_MS){
     INTRO.state='idle';INTRO.t=0;$('menu').hidden=true;
     $('menu').classList.remove('leaving','flying');newRun();
