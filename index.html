@@ -88,14 +88,12 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 .seg input:checked+span{background:var(--sun);font-weight:800}
 .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
 
-#touch{position:absolute;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:flex-end;z-index:4}
+#touch{position:absolute;right:16px;bottom:calc(26px + var(--urnaH,0px) + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:flex-end;z-index:4}
 .tbtn{font-family:var(--display);letter-spacing:.05em;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);touch-action:none}
-#bMash{width:100px;height:100px;border-radius:50%;font-size:30px;background:var(--sun)}
-#bMash:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #bGuard{width:76px;height:76px;border-radius:50%;font-size:21px;background:#fff}
 #bGuard.held{background:var(--ink);color:var(--paper)}
 #bThrow{padding:10px 28px;font-size:32px;background:var(--orb)}
-@media (prefers-reduced-motion: reduce){ .primary:active,.ghost:active,#bMash:active{transform:none} }
+@media (prefers-reduced-motion: reduce){ .primary:active,.ghost:active{transform:none} }
 </style>
 
 <div id="stage">
@@ -108,7 +106,6 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 
   <div id="touch">
     <button class="tbtn" id="bGuard" hidden>Guard</button>
-    <button class="tbtn" id="bMash" hidden>Mash</button>
     <button class="tbtn" id="bThrow" hidden>Throw</button>
   </div>
 
@@ -469,7 +466,6 @@ addEventListener('keydown',e=>{
   if(dir)aimMove(dir[0],dir[1]);
 });
 addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyK')setGuard(false);});
-$('bMash').addEventListener('pointerdown',e=>{e.preventDefault();mash();});
 const gb=$('bGuard');
 gb.addEventListener('pointerdown',e=>{e.preventDefault();setGuard(true);});
 ['pointerup','pointerleave','pointercancel'].forEach(ev=>gb.addEventListener(ev,()=>setGuard(false)));
@@ -478,6 +474,7 @@ cv.addEventListener('pointerdown',e=>{
   audioInit();
   if(G.phase==='menu'){beginStart();return;}
   if(G.phase==='fullShot')return;   // swallow taps during the shot
+  if(G.phase==='gather'){e.preventDefault();mash();return;}   // tap anywhere to mash
   if(G.phase==='aim'){
     const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
     for(const c of G.cells){const pts=c.poly.map(([x,z])=>proj(x,z));if(inPoly(px,py,pts)){G.reticle=c;tone('triangle',520,520,.04,.05);break;}}
@@ -488,7 +485,6 @@ $('bStart').addEventListener('click',beginStart);
 $('bRetry').addEventListener('click',()=>{audioInit();newRun();});
 $('bTogOpen').addEventListener('click',()=>{$('tog').open=true;});
 function updateTouch(){
-  $('bMash').hidden=G.phase!=='gather';
   $('bGuard').hidden=!(G.phase==='gather'&&S.guard==='button');
   $('bThrow').hidden=G.phase!=='aim';
 }
@@ -900,6 +896,7 @@ function gatherHUD(){
   rr(W/2-tw/2,58,tw,9,4);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,58,tw,9,4);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,58,tw*(1-G.gTime/G.gLimit),9);ctx.restore();rr(W/2-tw/2,58,tw,9,4);inkStroke(2.5);
   comic("HE WON'T WAIT FOREVER",W/2,50,18,'#fff','center');
   label(S.guard==='stop'?'Mash. Stop when he glows.':'Mash. Hold guard when he glows.',W/2,H-18-(W<560?118:0),{align:'center',size:13});
+  drawUrna();
   for(const p of G.pops){const a=1-p.t/1.1;ctx.globalAlpha=clamp(a*1.5,0,1);
     comic(p.text,W/2,H*.52-p.t*36,Math.round(Math.min(W,H)*.085*(1+.25*Math.max(0,.2-p.t)*5)),p.c,'center',-.06);ctx.globalAlpha=1;}
 }
@@ -976,6 +973,23 @@ function enemyAimPos(){
 function sphereAimR(){return Math.min(W,H)*[.12,.17,.24][G.level-1];}
 function polyPath(c){const pts=c.poly.map(([x,z])=>proj(x,z));ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();}
 const GROUND=new Image();GROUND.src='assets/ground.jpg';let GPAT=null;
+/* The urna in the bottom-right, driven straight off G.lastMash: 1 idle, 2 the
+   button struck and flashing, 3 the residual sparks, then back to 1. Reusing
+   lastMash rather than a second clock means the art cannot drift out of step
+   with the press the game actually registered. */
+const URNA=[1,2,3].map(n=>{const i=new Image();i.src=encodeURI('assets/new/urna-'+n+'.png');return i;});
+const URNA_FLASH=.07, URNA_AFTER=.13;   // seconds on frame 2, then on frame 3
+let urnaHCss=-1;
+function drawUrna(){
+  const since=G.t-(G.lastMash??-9);
+  const im=URNA[since<URNA_FLASH?1:since<URNA_FLASH+URNA_AFTER?2:0];
+  if(!im.complete||!im.naturalWidth)return;
+  const w=Math.min(W*.26,300),h=w*im.naturalHeight/im.naturalWidth;   // big source, small corner
+  ctx.drawImage(im,W-w-16,H-h-16,w,h);
+  // keep the touch Mash button clear of it instead of letting them overlap
+  const hh=Math.round(h);
+  if(hh!==urnaHCss){urnaHCss=hh;document.documentElement.style.setProperty('--urnaH',hh+'px');}
+}
 function groundPattern(){if(!GPAT&&GROUND.complete&&GROUND.naturalWidth){try{GPAT=ctx.createPattern(GROUND,'repeat');}catch(e){}}return GPAT;}
 const TEX_PER_WORLD=512/2.4;
 function drawGround(top){
