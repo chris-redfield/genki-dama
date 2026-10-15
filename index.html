@@ -1,4 +1,11 @@
 <meta charset="utf-8">
+<!-- Without this a phone lays the page out at 980px and scales it down: every
+     touch target shrinks and the canvas is drawn at a third of its real size.
+     user-scalable=no is deliberate - pinch and double-tap zoom while mashing
+     would fight the player. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1a88f9">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Vô votar no 13!</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +19,13 @@
   color-scheme:light;
 }
 html,body{height:100%}
+/* The phone browser chrome slides in and out as you play; 100dvh keeps the
+   stage glued to what is actually on screen instead of to the tallest it
+   could ever be. Desktop reads the same number either way. */
+@supports(height:100dvh){html,body{height:100dvh}}
+/* no pull-to-refresh, no text inflation, no grey flash under a mashing thumb */
+html{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 body{margin:0}
 body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14px;overflow:hidden}
@@ -108,6 +122,31 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 #bGuard.held{background:var(--ink);color:var(--paper)}
 #bThrow{padding:10px 28px;font-size:32px;background:var(--orb)}
 @media (prefers-reduced-motion: reduce){ .primary:active,.ghost:active{transform:none} }
+/* ---- phone ----
+   Only sizes and spacing: every screen keeps the same structure, so nothing
+   here can reach a desktop window. The urna dock owns the bottom of the
+   canvas in portrait, and --urnaH (set by drawUrna) is how tall it is, so the
+   on-screen buttons park above it instead of on top of it. */
+@media (max-width:560px){
+  #touch{right:12px;bottom:calc(74px + var(--urnaH,0px) + env(safe-area-inset-bottom,0px));gap:14px}
+  #bGuard{width:84px;height:84px;font-size:17px;padding:0}
+  #bThrow{padding:12px 30px;font-size:34px}
+  #tog summary{font-size:16px;padding:3px 10px}
+  #menu .card{gap:7px}
+  #menu .howto{font-size:23px}
+  #menu .keys{gap:4px 10px}
+  #menu .keys dt{font-size:16px}
+  #menu .card p,#menu .keys dd{font-size:13px;line-height:1.4}
+  #menu .card .hint{font-size:11px}
+  .star svg{width:42px;height:40px}
+}
+/* a short phone (SE-sized, or landscape) cannot fit the full how-to column */
+@media (max-height:700px) and (max-width:900px){
+  #menu .howto{font-size:20px}
+  #menu .card p,#menu .keys dd{font-size:12px}
+  #titleSpr{height:clamp(66px,12vh,120px)}
+  .star{display:none}
+}
 </style>
 
 <div id="stage">
@@ -161,8 +200,35 @@ const DISP='"Titan One", Impact, "Arial Black", sans-serif', BODY='"M PLUS Round
 const stage=document.getElementById('stage'), cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 let W=800,H=450,DPR=1;
-function resize(){const r=stage.getBoundingClientRect();W=Math.max(300,r.width);H=Math.max(240,r.height);DPR=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);}
-addEventListener('resize',resize); resize();
+/* ---------- framing ----------
+   Phase 1 is composed against the height of the frame: the hero is H*.5 tall,
+   the orb grows to H*.535, the backdrop drops its horizon at H*.76. Hold a phone
+   upright and H is more than twice W, so those same numbers give an orb wider
+   than the screen and a hero that fills it. Portrait therefore reads sizes off
+   SU instead, and lays the scene out inside SH:
+     PORT - taller than it is wide, by a margin no desktop window has. Every
+            change below hangs off this one flag, so a landscape window - which
+            is what every desktop is - runs the code it always ran.
+     SU   - the height those sizes are tuned against. H in landscape (so the
+            desktop build is untouched); a width-derived height in portrait.
+     SH   - the scene's own height: the screen minus the urna dock at the bottom.
+            Phase 1 draws inside it, so the backdrop still cover-fits and the
+            hero still stands on ground rather than on the dock.
+   The jump at the switch sits at a square window, which nobody plays at. */
+let PORT=false,SU=450,SH=450;
+const URNA_AR=1024/1536;      // assets/new/urna-*.png, all three frames
+/* The dock is a function of the screen alone, not of the art: it has to be known
+   before the first frame, while the images are still loading. drawUrna fits the
+   art inside it. */
+function dockH(){return PORT?Math.min(W*URNA_AR,H*.3):0;}
+function reframe(){PORT=H>W*1.1;SU=PORT?W*.78:H;SH=H-dockH();}
+function resize(){const r=stage.getBoundingClientRect();W=Math.max(300,r.width);H=Math.max(240,r.height);DPR=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);reframe();}
+addEventListener('resize',resize);
+// rotating a phone can report the new size a frame late, and the visual viewport
+// moves on its own when the browser chrome slides away
+addEventListener('orientationchange',()=>setTimeout(resize,120));
+if(window.visualViewport)visualViewport.addEventListener('resize',resize);
+resize();
 
 /* ---------- settings / toggles ---------- */
 const DEF={guard:'stop',grid:'square',aim:'shadow',throwCam:'follow',disint:'full',miss:'cold',opening:'on',planet:'toon',music:'on'};
@@ -510,21 +576,33 @@ $('bTogOpen').addEventListener('click',()=>{$('tog').open=true;});
 function updateTouch(){
   $('bGuard').hidden=!(G.phase==='gather'&&S.guard==='button');
   $('bThrow').hidden=G.phase!=='aim';
+  // the urna is only on screen while gathering; everywhere else the buttons drop
+  // back down to the bottom edge
+  if(G.phase!=='gather')setUrnaH(0);
 }
 
 /* ---------- gather logic ---------- */
 function gatherLayout(){
-  const e=G.energy/100, z=1-.22*e, ax=W/2, ay=H*.9;
-  const h=H*.3, u=h/100, feetY=H*.97, hh=BACK?H*.5:SPR?H*.42:h*1.12, handsY=(BACK||SPR)?feetY-hh*.97:feetY-112*u;
-  const r=H*(.035+.5*Math.pow(e,.9));
-  return {e,z,ax,ay,u,feetY,hh,hx:W/2,handsY,sx:W/2,sy:handsY-r*.92,r,
-    ex:W/2+Math.min(W*.3,H*.55),ey:H*.38,es:H*.17};
+  const e=G.energy/100, z=1-.22*e;
+  // he carries a taller frame in portrait: half of SU would leave him a quarter
+  // of the scene, where on a wide screen he is half of it
+  const h=SU*.3, u=h/100, hh=(BACK?SU*.5:SPR?SU*.42:h*1.12)*(PORT?1.2:1);
+  // Portrait stands him higher: the strip under his feet carries the two bars,
+  // and the urna dock is below that. Landscape still plants him on the edge.
+  const feetY=PORT?SH*.88:H*.97, ay=PORT?feetY:H*.9;
+  const handsY=(BACK||SPR)?feetY-hh*.97:feetY-112*u;
+  const r=SU*(.035+.5*Math.pow(e,.9));
+  return {e,z,ax:W/2,ay,u,feetY,hh,hx:W/2,handsY,sx:W/2,sy:handsY-r*.92,r,
+    /* A wide screen parks him just outside the full orb; a phone has no such
+       room to the side, so portrait drops him to the hero's own eye level, where
+       the orb is already narrowing - and out from under the top of the HUD. */
+    ex:PORT?W*.82:W/2+Math.min(W*.3,SU*.55),ey:PORT?SH*.6:H*.38,es:PORT?SU*.26:SU*.17};
 }
 function spawnOrb(){
   const L=gatherLayout();
   // spawn off the visible world edges (inverse of camera zoom)
   const side=Math.random();let sx,sy;
-  if(side<.5){sx=Math.random()<.5?-20:W+20;sy=rand(H*.3,H*.8);}else{sx=rand(0,W);sy=H*rand(.72,.8);}
+  if(side<.5){sx=Math.random()<.5?-20:W+20;sy=rand(SH*.3,SH*.8);}else{sx=rand(0,W);sy=SH*rand(.72,.8);}
   const wx=L.ax+(sx-L.ax)/L.z, wy=L.ay+(sy-L.ay)/L.z;
   G.orbs.push({x:wx,y:wy,v:rand(.6,1.2),life:0});
 }
@@ -616,12 +694,16 @@ const BG1=new Image();BG1.src='assets/bg-gathering.jpg';const BG1_HZ=724/941;
 // shows ONLY its bottom third (the horizon + ground band). The upper two thirds are
 // deliberately left unrendered here - they are for in-game use later.
 const FUNDO=new Image();FUNDO.src='assets/fundo-1.png';
-const FUNDO_PART=1/3;
+/* Landscape keeps the bottom third it was framed for. A phone takes a taller
+   slice: a third of a 1024-wide image stretched over a portrait screen is a 1.6x
+   upscale of the sky, while 60% of it lands just under 1:1 - sharper, and it
+   shows more of the scene the shot was painted for. */
+const FUNDO_PART=1/3, FUNDO_PART_PORT=.6;
 const TITLE_DROP=50;   // screen px the framing sits lower, i.e. how much extra sky shows on top
 function drawFundoTitle(pan=0){
   if(!FUNDO.complete||!FUNDO.naturalWidth)return false;
   const iw=FUNDO.naturalWidth,ih=FUNDO.naturalHeight;
-  const sh=Math.round(ih*FUNDO_PART);                   // bottom third, one third tall
+  const sh=Math.round(ih*(PORT?FUNDO_PART_PORT:FUNDO_PART));   // bottom slice of the backdrop
   const k=Math.max(W/iw,H/sh),w=iw*k,h=sh*k;            // cover-fit that crop
   // The crop is wider than the canvas, so cover-fit is height-constrained: h===H and
   // there is no vertical slack to slide the destination into. Push the framing down by
@@ -632,14 +714,18 @@ function drawFundoTitle(pan=0){
   ctx.drawImage(FUNDO,0,sy,iw,sh,(W-w)/2,(H-h)/2,w,h);
   return true;
 }
-function drawBG(img,hzY,zoom=1){
+/* fitH is the height the backdrop has to cover. It is the full screen everywhere
+   except phase 1 in portrait, where the scene stops above the urna dock - fitting
+   a landscape photo to the whole phone instead would push its horizon off the
+   bottom and leave the ground as a flat band of fill colour. */
+function drawBG(img,hzY,zoom=1,fitH=H){
   const HZ=img.hz||BG1_HZ;
   // cover-fit, horizon of the image lands on hzY
-  if(!img.complete||!img.naturalWidth){ctx.fillStyle=SKY;ctx.fillRect(0,0,W,hzY);ctx.fillStyle=DUST;ctx.fillRect(0,hzY,W,H-hzY);return;}
-  const s=Math.max(W/img.naturalWidth,H/img.naturalHeight)*zoom, w=img.naturalWidth*s, h=img.naturalHeight*s;
+  if(!img.complete||!img.naturalWidth){ctx.fillStyle=SKY;ctx.fillRect(0,0,W,hzY);ctx.fillStyle=DUST;ctx.fillRect(0,hzY,W,fitH-hzY);return;}
+  const s=Math.max(W/img.naturalWidth,fitH/img.naturalHeight)*zoom, w=img.naturalWidth*s, h=img.naturalHeight*s;
   const x=(W-w)/2, y=hzY-HZ*h;
   if(y>0){ctx.fillStyle=SKY;ctx.fillRect(0,0,W,y+1);}
-  if(y+h<H){ctx.fillStyle=DUST_D;ctx.fillRect(0,y+h-1,W,H-y-h+1);}
+  if(y+h<fitH){ctx.fillStyle=DUST_D;ctx.fillRect(0,y+h-1,W,fitH-y-h+1);}
   ctx.drawImage(img,x,y,w,h);
 }
 
@@ -815,7 +901,7 @@ function bar(x,y,w,h,v,col,name){
 function opening(){
   const p=clamp(G.pt/3.6,0,1);
   spaceBG();drawStars(1,-p*20,0);
-  const R=Math.min(W*.4,H*.4),cx=W/2,cy=H*.54;
+  const R=Math.min(W*(PORT?.46:.4),H*.4),cx=W/2,cy=H*.54;
   const T=planetTarget(cx,cy,R,false,-1.25);
   ctx.save();const k=1+.07*ease(p);ctx.translate(T.x,T.y);ctx.scale(k,k);ctx.translate(-T.x,-T.y);
   drawPlanet(cx,cy,R);
@@ -871,13 +957,13 @@ function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
   const sh=G.shake>0?G.shake*14:0;const ox=(Math.random()-.5)*sh,oy=(Math.random()-.5)*sh;
   ctx.save();ctx.translate(ox,oy);
-  drawBG(BG1,H*.76,1.1-.08*e);
+  drawBG(BG1,SH*.76,1.1-.08*e,SH);
   // the sky darkens as the orb grows
-  let g=ctx.createLinearGradient(0,0,0,H*.76);g.addColorStop(0,`rgba(22,26,84,${.62*e})`);g.addColorStop(1,`rgba(22,26,84,${.12*e})`);ctx.fillStyle=g;ctx.fillRect(-20,-20,W+40,H*.76+20);
+  let g=ctx.createLinearGradient(0,0,0,SH*.76);g.addColorStop(0,`rgba(22,26,84,${.62*e})`);g.addColorStop(1,`rgba(22,26,84,${.12*e})`);ctx.fillStyle=g;ctx.fillRect(-20,-20,W+40,SH*.76+20);
   ctx.translate(L.ax,L.ay);ctx.scale(L.z,L.z);ctx.translate(-L.ax,-L.ay);
   // orb light pool on the ground
   ctx.fillStyle=`rgba(200,240,255,${.12+e*.18})`;ctx.beginPath();ctx.ellipse(L.hx,L.feetY,L.r*.9+W*.08,(L.r*.9+W*.08)*.16,0,0,TAU);ctx.fill();
-  const A=G.atk,bob=Math.sin(G.t*1.6)*H*.008;const ex=L.ex,ey=L.ey+bob;
+  const A=G.atk,bob=Math.sin(G.t*1.6)*SH*.008;const ex=L.ex,ey=L.ey+bob;
   const charging=!frozen&&(A.state==='windup'||A.state==='fire');
   enemyS(ctx,charging?4:0,ex,ey,L.es);
   let hand={x:ex+L.es/110*41,y:ey-L.es/110*14};
@@ -892,7 +978,7 @@ function gatherScene(frozen){
     const strained=!frozen&&((G.t-(G.lastHitT??-9))<.7||G.mashTimes.length>=6);
     const col=frozen?1:strained?2:(e>.3?1:0);
     drawHeroSprite(1,col,L.hx,L.feetY,L.hh,{glow:.25+e*.45,tremble:frozen?0:G.mashTimes.length*.35});
-  }else drawHero(L.hx,L.feetY,H*.3,{tremble:G.mashTimes.length*.25});
+  }else drawHero(L.hx,L.feetY,SU*.3,{tremble:G.mashTimes.length*.25});
   if(!frozen&&A.state==='windup'){
     const q=1-A.timer/A.dur,rr2=L.es*(.07+q*.2);
     ctx.fillStyle='rgba(255,90,42,.3)';circ(hand.x,hand.y,rr2*2);ctx.fill();
@@ -912,16 +998,24 @@ function gatherScene(frozen){
   }
 }
 function gatherHUD(){
-  const bw=Math.min(270,W*.42),x=18,y=H-62-(W<560?118:0);
-  bar(x,y,bw,14,G.energy/100,ORB_B,'ENERGY '+Math.round(G.energy)+'%');
-  bar(x,y+40,bw,14,G.hp/100,G.hp<35?KI:'#5fcf5f','HEALTH '+Math.max(0,Math.round(G.hp)));
-  const tw=Math.min(300,W*.42);
-  rr(W/2-tw/2,58,tw,9,4);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,58,tw,9,4);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,58,tw*(1-G.gTime/G.gLimit),9);ctx.restore();rr(W/2-tw/2,58,tw,9,4);inkStroke(2.5);
-  comic("HE WON'T WAIT FOREVER",W/2,50,18,'#fff','center');
-  label(S.guard==='stop'?'Mash. Stop when he glows.':'Mash. Hold guard when he glows.',W/2,H-18-(W<560?118:0),{align:'center',size:13});
+  if(PORT){
+    // side by side on the strip between his feet and the dock
+    const bw=(W-42)/2,by=SH-30;
+    bar(14,by,bw,13,G.energy/100,ORB_B,'ENERGY '+Math.round(G.energy)+'%');
+    bar(W/2+7,by,bw,13,G.hp/100,G.hp<35?KI:'#5fcf5f','HEALTH '+Math.max(0,Math.round(G.hp)));
+  }else{
+    const bw=Math.min(270,W*.42),x=18,y=H-62-(W<560?118:0);
+    bar(x,y,bw,14,G.energy/100,ORB_B,'ENERGY '+Math.round(G.energy)+'%');
+    bar(x,y+40,bw,14,G.hp/100,G.hp<35?KI:'#5fcf5f','HEALTH '+Math.max(0,Math.round(G.hp)));
+  }
+  // in portrait the whole top block drops below the Test toggles button
+  const top=PORT?72:50, ty=top+8, tw=PORT?W*.62:Math.min(300,W*.42);
+  rr(W/2-tw/2,ty,tw,9,4);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,ty,tw,9,4);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,ty,tw*(1-G.gTime/G.gLimit),9);ctx.restore();rr(W/2-tw/2,ty,tw,9,4);inkStroke(2.5);
+  comic("HE WON'T WAIT FOREVER",W/2,top,18,'#fff','center');
+  label(S.guard==='stop'?'Mash. Stop when he glows.':'Mash. Hold guard when he glows.',W/2,PORT?top+34:H-18-(W<560?118:0),{align:'center',size:13});
   drawUrna();
   for(const p of G.pops){const a=1-p.t/1.1;ctx.globalAlpha=clamp(a*1.5,0,1);
-    comic(p.text,W/2,H*.52-p.t*36,Math.round(Math.min(W,H)*.085*(1+.25*Math.max(0,.2-p.t)*5)),p.c,'center',-.06);ctx.globalAlpha=1;}
+    comic(p.text,W/2,(PORT?SH*.5:H*.52)-p.t*36,Math.round(Math.min(W,H)*.085*(1+.25*Math.max(0,.2-p.t)*5)),p.c,'center',-.06);ctx.globalAlpha=1;}
 }
 function impactFrame(){
   // one-beat black and white manga frame on a full hit
@@ -980,13 +1074,21 @@ function cutawayScene(){
 }
 
 /* ---------- aiming projection ---------- */
+/* One source of truth for the floor: proj() places the grid, the enemy and the
+   orb against it, and drawGround lays the texture down the same vanishing point.
+   They used to carry two copies of these four numbers. Portrait drops the
+   horizon and spends more of the width - the width term wins on any phone, and
+   .55 is the largest that still keeps the near corners of both grids on screen. */
+function floorP(){
+  const R=G.R||1.6;
+  return {R,h:2.4*R,D:1.25*R,hz:H*(PORT?.26:.2),
+          f:Math.min(H*.76*(1.25/2.4),W*(PORT?.55:.46)*1.25)};
+}
 function proj(x,z){
   const R=G.R||1.6;
   if(S.aim==='top'){const s=Math.min(W*.44,H*.36)/R;return {x:W/2+x*s,y:H*.57-z*s,u:s};}
-  const h=2.4*R,D=1.25*R,hz=H*.2;
-  const f=Math.min(H*.76*D/h,W*.46*D/R);
-  const depth=D+(z+R);
-  return {x:W/2+f*x/depth,y:hz+f*h/depth,u:f/depth*1.15};
+  const P=floorP(), depth=P.D+(z+R);
+  return {x:W/2+P.f*x/depth,y:P.hz+P.f*P.h/depth,u:P.f/depth*1.15};
 }
 function enemyAimPos(){
   let wx=G.enemyCell.x,wz=G.enemyCell.z;
@@ -1003,15 +1105,33 @@ const GROUND=new Image();GROUND.src='assets/ground.jpg';let GPAT=null;
 const URNA=[1,2,3].map(n=>{const i=new Image();i.src=encodeURI('assets/new/urna-'+n+'.png');return i;});
 const URNA_FLASH=.07, URNA_AFTER=.13;   // seconds on frame 2, then on frame 3
 let urnaHCss=-1;
+function setUrnaH(h){const hh=Math.round(h);if(hh!==urnaHCss){urnaHCss=hh;document.documentElement.style.setProperty('--urnaH',hh+'px');}}
 function drawUrna(){
   const since=G.t-(G.lastMash??-9);
-  const im=URNA[since<URNA_FLASH?1:since<URNA_FLASH+URNA_AFTER?2:0];
+  const f=since<URNA_FLASH?1:since<URNA_FLASH+URNA_AFTER?2:0;
+  const im=URNA[f];
   if(!im.complete||!im.naturalWidth)return;
+  if(PORT){
+    /* On a phone the urna is not scenery, it is the button: it owns the bottom
+       strip of the screen edge to edge, and the CONFIRMA key lighting up on
+       frame 2 is the press. (Any tap on the canvas still mashes - see the
+       pointerdown on cv - so a thumb landing anywhere works; this is what the
+       thumb aims at.) The strip is painted first because the art's corners are
+       transparent and the scene stops above it. */
+    const dh=dockH(), top=H-dh;
+    const g=ctx.createLinearGradient(0,top,0,H);g.addColorStop(0,'#cf9550');g.addColorStop(1,'#8a5c2b');
+    ctx.fillStyle=g;ctx.fillRect(0,top,W,dh);
+    ctx.beginPath();ctx.moveTo(0,top+2);ctx.lineTo(W,top+2);inkStroke(4);
+    let h=dh,w=h*im.naturalWidth/im.naturalHeight;
+    if(w>W){w=W;h=w*im.naturalHeight/im.naturalWidth;}
+    ctx.drawImage(im,(W-w)/2,top+(dh-h)/2+(f?2:0),w,h);   // 2px travel on the press
+    setUrnaH(dh);
+    return;
+  }
   const w=Math.min(W*.26,300),h=w*im.naturalHeight/im.naturalWidth;   // big source, small corner
   ctx.drawImage(im,W-w-16,H-h-16,w,h);
   // keep the touch Mash button clear of it instead of letting them overlap
-  const hh=Math.round(h);
-  if(hh!==urnaHCss){urnaHCss=hh;document.documentElement.style.setProperty('--urnaH',hh+'px');}
+  setUrnaH(h);
 }
 function groundPattern(){if(!GPAT&&GROUND.complete&&GROUND.naturalWidth){try{GPAT=ctx.createPattern(GROUND,'repeat');}catch(e){}}return GPAT;}
 const TEX_PER_WORLD=512/2.4;
@@ -1023,7 +1143,7 @@ function drawGround(top){
     pat.setTransform(new DOMMatrix().translate(W/2,H*.57).scale(s,s));ctx.fillStyle=pat;ctx.fillRect(0,0,W,H);return;
   }
   // perspective ground drawn in horizontal strips, matching proj()
-  const R=G.R||1.6,h=2.4*R,D=1.25*R,hz=H*.2,f=Math.min(H*.76*D/h,W*.46*D/R);
+  const {R,h,D,hz,f}=floorP();
   for(let y=Math.floor(hz+1);y<H;y+=3){
     const yc=y+1.5,depth=f*h/(yc-hz),s=(f/depth)/TEX_PER_WORLD,z=depth-D-R;
     const dzdy=f*h/((yc-hz)*(yc-hz)),sv=1/(dzdy*TEX_PER_WORLD);
@@ -1035,7 +1155,7 @@ function drawGround(top){
 function aimScene(showUI){
   const top=S.aim==='top';
   if(top)drawGround(true);
-  else{drawBG(BG1,H*.2,1);drawGround(false);}
+  else{drawBG(BG1,floorP().hz,1);drawGround(false);}
   const cov=G.phase==='aim'?covered(G.reticle,G.level):(G.cov||[]);
   for(const c of G.cells){polyPath(c);ctx.fillStyle='rgba(255,236,200,.22)';ctx.fill();inkStroke(2);}
   for(const c of cov){polyPath(c);
@@ -1059,9 +1179,11 @@ function aimScene(showUI){
   enemyS(ctx,pose,ep.x+dx*es*.12*lean,ep.y-es*.62,es,{tilt:tilt+sway,sy});
   if(G.phase==='aim')drawSphere(W/2,-sphereAimR()*.25,sphereAimR(),G.t);
   if(showUI){
-    const tw=Math.min(300,W*.5);rr(W/2-tw/2,18,tw,10,5);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,18,tw,10,5);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,18,tw*(1-G.pt/G.aimLimit),10);ctx.restore();rr(W/2-tw/2,18,tw,10,5);inkStroke(2.5);
-    comic('WATCH HIS BODY. PICK WHERE HE WILL BE.',W/2,54,Math.round(clamp(W*.035,16,24)),'#fff','center');
-    comic('ORB: '+LEVELNAME().toUpperCase(),18,H-24-(W<560?96:0),20,ORB_B);
+    const tw=Math.min(300,W*.5),ty=PORT?56:18;
+    rr(W/2-tw/2,ty,tw,10,5);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,ty,tw,10,5);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,ty,tw*(1-G.pt/G.aimLimit),10);ctx.restore();rr(W/2-tw/2,ty,tw,10,5);inkStroke(2.5);
+    comic('WATCH HIS BODY. PICK WHERE HE WILL BE.',W/2,ty+36,Math.round(clamp(W*.035,16,24)),'#fff','center');
+    if(PORT)comic('ORB: '+LEVELNAME().toUpperCase(),W/2,ty+64,18,ORB_B,'center');
+    else comic('ORB: '+LEVELNAME().toUpperCase(),18,H-24-(W<560?96:0),20,ORB_B);
   }
 }
 function throwScene(){
@@ -1134,7 +1256,7 @@ function disintScene(){
 /* ---------- orbit endings ---------- */
 function orbitScene(miss){
   spaceBG();drawStars(1);
-  const R=Math.min(W*.4,H*.4),cx=W/2,cy=H*.54;
+  const R=Math.min(W*(PORT?.46:.4),H*.4),cx=W/2,cy=H*.54;
   const a=miss?-1.0:-1.25;const T=planetTarget(cx,cy,R,miss,a);
   drawPlanet(cx,cy,R);
   const t=G.pt;
@@ -1168,7 +1290,9 @@ function draw(){
       else if(G.closeup>0)closeupScene();
       else{gatherScene(false);gatherHUD();}
       break;
-    case 'silence': gatherScene(true);break;
+    // the HUD clears for the held breath, but the urna has to stay: in portrait
+    // it is the only thing that paints the dock strip under the scene
+    case 'silence': gatherScene(true);if(PORT)drawUrna();break;
     case 'aim': aimScene(true);break;
     case 'throw': throwScene();break;
     case 'disint': disintScene();break;
