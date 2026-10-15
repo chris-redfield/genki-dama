@@ -32,11 +32,12 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 #menu.leaving .card>*:not(h1):not(#titleSpr){transform:translateX(150vw)}
 /* He holds position while the menu swipes apart, then rides the camera up. */
 @keyframes titleBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-#titleSpr{animation:titleBob 2.6s ease-in-out infinite}
+/* only once he is actually hovering - a man standing on sand should not bob */
+#menu.leaving #titleSpr{animation:titleBob 1.5s ease-in-out infinite}
 #menu.flying{background:transparent}
 #menu.flying #titleSpr{animation:none;transform:translateY(-135vh);
   transition:transform var(--panMs,1625ms) cubic-bezier(.42,0,.72,.3);transition-delay:0s}
-@media (prefers-reduced-motion:reduce){#titleSpr{animation:none}}
+@media (prefers-reduced-motion:reduce){#menu.leaving #titleSpr{animation:none}}
 #menu .card>*:nth-child(3){transition-delay:.03s}
 #menu .card>*:nth-child(4){transition-delay:.06s}
 #menu .card>*:nth-child(5){transition-delay:.09s}
@@ -164,7 +165,7 @@ const TOGGLES=[
  ['throwCam','Throw camera',[['follow','A: follow orb'],['static','B: stay put']]],
  ['disint','Hit effect',[['full','Disintegrate'],['simple','Simple flash']]],
  ['miss','Miss ending',[['cold','Cold push-in'],['plain','Plain miss']]],
- ['opening','Opening orbit shot',[['on','Play'],['off','Skip']]],
+ ['opening','Full-orb planet shot',[['on','Play'],['off','Skip']]],
  ['planet','Planet look (if loaded)',[['toon','Toon'],['photo','Photo']]],
  ['music','Music',[['on','On'],['off','Off']]],
 ];
@@ -260,15 +261,20 @@ loadBackURL('assets/hero-back2.png',false);
 /* Title-screen character, two poses. Each sheet holds the same figure at three
    scales on green; sliceStrip keys the green and splits the row, and we keep the
    last (smallest) figure of each. Hovering on the menu, fist-up once he takes off. */
-let SPR_HOVER=null,SPR_FLY=null;
+let SPR_STERN=null,SPR_HOVER=null,SPR_FLY=null;
 function setTitleSprite(url){const el=$('titleSpr');if(el&&url){el.src=url;el.hidden=false;}}
 function loadTrio(file,done){const i=new Image();
   i.onload=()=>{try{const f=sliceStrip(i);done(f[f.length-1].toDataURL('image/png'));}catch(e){}};
   i.src=encodeURI(file);}
-loadTrio('assets/new/Arms-down hovering sprite trio.png',u=>{SPR_HOVER=u;
+// standing on the menu...
+loadTrio('assets/new/Three Stern Suit-Wearing Elders.png',u=>{SPR_STERN=u;
   if(INTRO.state==='idle')setTitleSprite(u);});
+// ...lifting off the ground once COMECAR is hit, then climbing fist-first.
+// Both are pre-decoded so neither swap can flash mid-transition.
+loadTrio('assets/new/Arms-down hovering sprite trio.png',u=>{SPR_HOVER=u;
+  const pre=new Image();pre.src=u;});
 loadTrio('assets/new/Three-scale Lula takeoff sprite sheet.png',u=>{SPR_FLY=u;
-  const pre=new Image();pre.src=u;});   // decode it now so the swap cannot flash
+  const pre=new Image();pre.src=u;});
 function drawCanvasSprite(s,x,feetY,h,o={}){
   const w=s.width*h/s.height;ctx.save();if(o.glow){ctx.shadowColor=`rgba(159,232,255,${o.glow})`;ctx.shadowBlur=26;}
   ctx.drawImage(s,x-w/2+(o.tremble?(Math.random()-.5)*o.tremble:0),feetY-h,w,h);ctx.restore();
@@ -347,13 +353,13 @@ const RIDGE=Array.from({length:40},(_,i)=>Math.sin(i*1.7)*.5+Math.sin(i*.43)*.8+
 /* ---------- game state ---------- */
 let G={phase:'menu',t:0,pt:0};
 function newRun(skipToNothing){
-  G={phase:'opening',t:0,pt:0,energy:0,hp:100,gTime:0,gLimit:30,mashTimes:[],lastMash:-9,guardHeld:false,
+  G={phase:'gather',t:0,pt:0,energy:0,hp:100,gTime:0,gLimit:30,mashTimes:[],lastMash:-9,guardHeld:false,
      atk:{state:'idle',timer:2.4,dur:1},cut50:false,cut100:false,cutaway:0,cutTotal:1,endAfterCut:false,
      closeup:0,shake:0,orbs:[],pops:[],nextTick:0,level:1,hits:0,braces:0,boomed:false};
   $('menu').hidden=true;$('result').hidden=true;
   setMaster(.8,.05);setHum(.04);
   if(skipToNothing) return;
-  if(S.opening==='off') toGather(); else setPhase('opening');
+  toGather();   // straight into the fight; the planet shot is the payoff for a full orb
 }
 function setPhase(p){G.phase=p;G.pt=0;updateTouch();}
 function toGather(){setPhase('gather');setHum(.05);}
@@ -430,10 +436,13 @@ function mash(){
 }
 function reachFull(){
   if(G.cut100)return;
-  G.energy=100;G.cut100=true;G.cutaway=G.cutTotal=1.1;G.endAfterCut=true;
+  G.energy=100;G.cut100=true;
+  // The planetary gathering shot used to open the run. It plays HERE now: the orb
+  // is full, and the threads converging out of the planet are the payoff for it.
+  if(S.opening==='off'){toSilence();return;}
+  G.cutaway=0;setPhase('fullShot');
 }
 function setGuard(v){G.guardHeld=v;$('bGuard').classList.toggle('held',v);}
-function skipOpening(){if(G.phase==='opening')toGather();}
 function aimMove(dx,dz){
   if(G.phase!=='aim')return;
   let best=null,bd=.3;
@@ -449,8 +458,9 @@ addEventListener('keydown',e=>{
   if(k==='ShiftLeft'||k==='ShiftRight'||k==='KeyK'){setGuard(true);return;}
   if(e.repeat)return;
   if(k==='Space'||k==='Enter'){
-    if(G.phase==='opening')skipOpening();
-    else if(G.phase==='gather')mash();
+    // fullShot deliberately has no branch: it is unskippable, so a player still
+    // mashing as the orb fills cannot blow straight through the payoff
+    if(G.phase==='gather')mash();
     else if(G.phase==='aim')doThrow();
     else if(G.phase==='result'&&k==='Enter'){audioInit();newRun();}
   }
@@ -467,7 +477,7 @@ $('bThrow').addEventListener('pointerdown',e=>{e.preventDefault();doThrow();});
 cv.addEventListener('pointerdown',e=>{
   audioInit();
   if(G.phase==='menu'){beginStart();return;}
-  if(G.phase==='opening'){skipOpening();return;}
+  if(G.phase==='fullShot')return;   // swallow taps during the shot
   if(G.phase==='aim'){
     const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
     for(const c of G.cells){const pts=c.poly.map(([x,z])=>proj(x,z));if(inPoly(px,py,pts)){G.reticle=c;tone('triangle',520,520,.04,.05);break;}}
@@ -511,7 +521,7 @@ function updGather(dt){
   }
   G.mashTimes=G.mashTimes.filter(t=>G.t-t<1);
   if(!G.cut50&&G.energy>=50){G.cut50=true;G.cutaway=G.cutTotal=.9;}
-  if(G.energy>=99.5)reachFull();
+  if(G.energy>=99.5){reachFull();if(G.phase!=='gather')return;}
   if(G.cutaway>0){G.cutaway-=dt;if(G.cutaway<=0){G.cutaway=0;if(G.endAfterCut){toSilence();return;}}}
   G.closeup=Math.max(0,G.closeup-dt);G.shake=Math.max(0,G.shake-dt);
   if(G.gTime>=G.gLimit){toSilence();return;}
@@ -550,7 +560,7 @@ function loop(now){
 }
 function update(dt){
   switch(G.phase){
-    case 'opening': if(G.pt>=3.6)toGather(); break;
+    case 'fullShot': if(G.pt>=3.6)toSilence(); break;
     case 'gather': updGather(dt); break;
     case 'silence': if(G.pt>=1.5)toAim(); break;
     case 'aim': if(G.pt>=G.aimLimit)doThrow(); break;
@@ -801,7 +811,6 @@ function opening(){
   }
   drawSphere(T.x,T.y,3+p*p*Math.min(W,H)*.045,G.t);
   ctx.restore();
-  label('tap or space to skip',W-16,H-16,{align:'right',size:11});
 }
 
 /* Menu -> game: the menu swipes apart, then the camera climbs the backdrop to
@@ -817,6 +826,7 @@ function beginStart(){
   if(INTRO.state!=='idle'||G.phase!=='menu')return;
   audioInit();tone('square',520,780,.09,.07);
   INTRO.state='out';INTRO.t=0;$('menu').classList.add('leaving');
+  setTitleSprite(SPR_HOVER);   // off the ground the moment the menu starts to clear
 }
 function introTick(dt){
   if(INTRO.state==='idle')return;
@@ -1115,7 +1125,7 @@ function pushinScene(){
 function draw(){
   switch(G.phase){
     case 'menu': titleScene();break;
-    case 'opening': opening();break;
+    case 'fullShot': opening();break;
     case 'gather':
       if(G.cutaway>0)cutawayScene();
       else if(G.closeup>0)closeupScene();
