@@ -250,12 +250,18 @@ const tb=$('togBody');
 TOGGLES.forEach(([k,label,opts])=>{
   const fs=document.createElement('fieldset');fs.className='tg';
   fs.innerHTML=`<legend>${label}</legend><div class="seg">${opts.map(([v,t])=>`<label><input type="radio" id="t-${k}-${v}" name="${k}" value="${v}" ${S[k]===v?'checked':''}><span>${t}</span></label>`).join('')}</div>`;
-  fs.addEventListener('change',e=>{S[k]=e.target.value;saveS();updateTouch();if(k==='music')applyMusic();});
+  fs.addEventListener('change',e=>{S[k]=e.target.value;saveS();updateTouch();if(k==='music')applyMusic();if(k==='grid'||k==='aim')warmGround();});
   tb.appendChild(fs);
 });
 const spr=document.createElement('div');spr.className='tg';
 spr.innerHTML=`<div class="eyebrow">Hero sprites</div><p class="hint" id="sheetHint">Loading assets/hero-front2.png…</p><p class="hint" id="backHint">Loading assets/hero-back2.png…</p>`;
 tb.appendChild(spr);
+/* Longest gap between two frames, per phase. A phone cannot be profiled from
+   here, so the game measures itself and the panel reports it: whatever stalls,
+   the phase it stalled in is top of the list. */
+const perf=document.createElement('div');perf.className='tg';
+perf.innerHTML=`<div class="eyebrow">Worst frame, this run</div><p class="hint" id="perfHint">-</p>`;
+tb.appendChild(perf);
 const mus=document.createElement('div');mus.className='tg';
 mus.innerHTML=`<div class="eyebrow">Music</div><p class="hint" id="musicHint">Loading assets/sequencia-13.mp3…</p>`;
 tb.appendChild(mus);
@@ -439,6 +445,7 @@ const RIDGE=Array.from({length:40},(_,i)=>Math.sin(i*1.7)*.5+Math.sin(i*.43)*.8+
 /* ---------- game state ---------- */
 let G={phase:'menu',t:0,pt:0};
 function newRun(skipToNothing){
+  PERF={};
   G={phase:'gather',t:0,pt:0,energy:0,hp:100,gTime:0,gLimit:30,mashTimes:[],lastMash:-9,guardHeld:false,
      atk:{state:'idle',timer:2.4,dur:1},cut50:false,cut100:false,cutaway:0,cutTotal:1,endAfterCut:false,
      closeup:0,shake:0,orbs:[],pops:[],nextTick:0,level:1,hits:0,braces:0,boomed:false};
@@ -645,9 +652,19 @@ function resolveAttack(){
 }
 
 /* ---------- main loop ---------- */
-let last=performance.now();
+let last=performance.now(),PERF={},perfN=0;
+const TOG=$('tog');   // hoisted: this is read every frame
+function showPerf(){
+  const h=$('perfHint');if(!h)return;
+  const ks=Object.keys(PERF).sort((a,b)=>PERF[b]-PERF[a]);
+  h.textContent=ks.length?ks.map(k=>k+' '+Math.round(PERF[k])).join(' \u00b7 ')+' ms':'-';
+}
 function loop(now){
-  const dt=Math.min(.05,(now-last)/1000);last=now;
+  const gap=now-last;
+  const dt=Math.min(.05,gap/1000);last=now;
+  // frame 1 measures the wait for the first animation frame, not a stall
+  if(perfN++>2&&gap>(PERF[G.phase]||0))PERF[G.phase]=gap;
+  if(perfN%15===0&&TOG.open)showPerf();
   G.t+=dt;G.pt+=dt;
   introTick(dt);
   update(dt);
@@ -1180,6 +1197,20 @@ function groundCache(top){
   paintGround(x,top);
   GCKEY=key;return c;
 }
+/* Building the sheet costs one paintGround, and the moment it would otherwise
+   happen is the worst one available: the cut from the held orb into the grid,
+   where the player is already waiting for a scene change, so the stall reads as
+   a freeze. It is warmed while the menu is still up instead, where nothing is
+   moving and a stall is invisible. The grid in play sets the floor's scale, so
+   the warm-up asks the toggles which grid that will be, and they re-warm it
+   when the answer changes. */
+function warmGround(){
+  if(!(GROUND.complete&&GROUND.naturalWidth))return;
+  try{G.R=buildGrid(S.grid).R;groundCache(S.aim==='top');}catch(e){}
+}
+if(GROUND.complete&&GROUND.naturalWidth)setTimeout(warmGround,0);
+else GROUND.addEventListener('load',()=>setTimeout(warmGround,0),{once:true});
+
 /* Everything above the horizon stays transparent, so the backdrop keeps showing.
    Only the part of the sheet the camera can actually see is blitted: the throw
    zooms to 2.8x, where four fifths of the floor is off screen and copying it
