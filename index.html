@@ -23,6 +23,21 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 /* the title is wider than the card on purpose, so give it its own full-width
    box to centre inside - centring inside the narrow card box just overflows right */
 #menu .card h1{width:100vw;max-width:none;position:relative;left:50%;transform:translateX(-50%)}
+#titleLogo{display:block;width:min(92vw,748px,91vh);height:auto;margin:0 auto}
+/* Menu exit: logo leaves left, everything else leaves right, staggered.
+   The logo itself is animated rather than its h1, because that h1 already
+   carries translateX(-50%) for centring and a second transform would fight it. */
+#titleLogo,#menu .card>*:not(h1){transition:transform .5s cubic-bezier(.55,.06,.68,.19)}
+#menu.leaving #titleLogo{transform:translateX(-150vw)}
+#menu.leaving .card>*:not(h1){transform:translateX(150vw)}
+#menu .card>*:nth-child(3){transition-delay:.03s}
+#menu .card>*:nth-child(4){transition-delay:.06s}
+#menu .card>*:nth-child(5){transition-delay:.09s}
+#menu .card>*:nth-child(6){transition-delay:.12s}
+#menu .card>*:nth-child(7){transition-delay:.15s}
+#menu .card>*:nth-child(8){transition-delay:.18s}
+@media (prefers-reduced-motion:reduce){#titleLogo,#menu .card>*{transition-duration:.01s;transition-delay:0s}}
+#menu .card{gap:10px;padding-top:14px;padding-bottom:14px}
 #menu .card .row{justify-content:center}
 #menu .keys{justify-content:center}
 #menu .keys dt{text-align:right}
@@ -91,7 +106,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 
   <div class="overlay" id="menu">
     <div class="card">
-      <h1>Vô votar no <span>13!</span></h1>
+      <h1><img id="titleLogo" src="assets/title-logo.png" alt="Vô votar no 13!"></h1>
       <div class="row"><button class="primary" id="bStart">COMEÇAR</button></div>
       <h2 class="howto">Como jogar</h2>
       <p>Raise your hands, pull energy from the whole planet, survive the hits, then land it on him.</p>
@@ -416,10 +431,12 @@ function aimMove(dx,dz){
 addEventListener('keydown',e=>{
   const k=e.code;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
+  // any key starts the run, except while the player is in the toggles panel
+  if(G.phase==='menu'&&!(e.target&&e.target.closest&&e.target.closest('#tog'))){beginStart();return;}
+
   if(k==='ShiftLeft'||k==='ShiftRight'||k==='KeyK'){setGuard(true);return;}
   if(e.repeat)return;
   if(k==='Space'||k==='Enter'){
-    if(G.phase==='menu'){audioInit();newRun();return;}
     if(G.phase==='opening')skipOpening();
     else if(G.phase==='gather')mash();
     else if(G.phase==='aim')doThrow();
@@ -437,6 +454,7 @@ gb.addEventListener('pointerdown',e=>{e.preventDefault();setGuard(true);});
 $('bThrow').addEventListener('pointerdown',e=>{e.preventDefault();doThrow();});
 cv.addEventListener('pointerdown',e=>{
   audioInit();
+  if(G.phase==='menu'){beginStart();return;}
   if(G.phase==='opening'){skipOpening();return;}
   if(G.phase==='aim'){
     const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
@@ -444,7 +462,7 @@ cv.addEventListener('pointerdown',e=>{
   }
 });
 function inPoly(x,y,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
-$('bStart').addEventListener('click',()=>{audioInit();newRun();});
+$('bStart').addEventListener('click',beginStart);
 $('bRetry').addEventListener('click',()=>{audioInit();newRun();});
 $('bTogOpen').addEventListener('click',()=>{$('tog').open=true;});
 function updateTouch(){
@@ -512,6 +530,7 @@ let last=performance.now();
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;
   G.t+=dt;G.pt+=dt;
+  introTick(dt);
   update(dt);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   draw();
@@ -558,7 +577,7 @@ const BG1=new Image();BG1.src='assets/bg-gathering.jpg';const BG1_HZ=724/941;
 const FUNDO=new Image();FUNDO.src='assets/fundo-1.png';
 const FUNDO_PART=1/3;
 const TITLE_DROP=50;   // screen px the framing sits lower, i.e. how much extra sky shows on top
-function drawFundoTitle(){
+function drawFundoTitle(pan=0){
   if(!FUNDO.complete||!FUNDO.naturalWidth)return false;
   const iw=FUNDO.naturalWidth,ih=FUNDO.naturalHeight;
   const sh=Math.round(ih*FUNDO_PART);                   // bottom third, one third tall
@@ -566,7 +585,9 @@ function drawFundoTitle(){
   // The crop is wider than the canvas, so cover-fit is height-constrained: h===H and
   // there is no vertical slack to slide the destination into. Push the framing down by
   // taking the source window TITLE_DROP screen px higher up the image instead.
-  const sy=Math.max(0,ih-sh-TITLE_DROP/k);
+  // pan 0 = title framing; pan 1 = sy 0, the top of the image, i.e. open sky.
+  // This is what the upper two thirds of fundo-1.png were being kept for.
+  const sy=Math.max(0,ih-sh-TITLE_DROP/k)*(1-pan);
   ctx.drawImage(FUNDO,0,sy,iw,sh,(W-w)/2,(H-h)/2,w,h);
   return true;
 }
@@ -771,11 +792,33 @@ function opening(){
   label('tap or space to skip',W-16,H-16,{align:'right',size:11});
 }
 
+/* Menu -> game: the menu swipes apart, then the camera climbs the backdrop to
+   the sky, and only then does the run start. One clock per stage, and `state`
+   doubles as the already-going guard so a second press cannot restart it --
+   the same shape title.js uses in batidao de coco. */
+const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const MENU_OUT_MS=REDUCED?80:700, SKY_PAN_MS=REDUCED?120:1250;
+let INTRO={state:'idle',t:0};
+function beginStart(){
+  if(INTRO.state!=='idle'||G.phase!=='menu')return;
+  audioInit();tone('square',520,780,.09,.07);
+  INTRO.state='out';INTRO.t=0;$('menu').classList.add('leaving');
+}
+function introTick(dt){
+  if(INTRO.state==='idle')return;
+  INTRO.t+=dt*1000;
+  if(INTRO.state==='out'){
+    if(INTRO.t>=MENU_OUT_MS){INTRO.state='pan';INTRO.t=0;$('menu').hidden=true;tone('sine',200,560,1.1,.1);}
+  }else if(INTRO.t>=SKY_PAN_MS){
+    INTRO.state='idle';INTRO.t=0;$('menu').classList.remove('leaving');newRun();
+  }
+}
+function introPan(){return INTRO.state==='pan'?ease(clamp(INTRO.t/SKY_PAN_MS,0,1)):0;}
 function titleScene(){
   // Title screen: backdrop only. It used to borrow gatherScene, which brought the
   // hero, the enemy, the energy orb and its ground light pool with it. A new, much
   // smaller character sprite goes here instead.
-  if(!drawFundoTitle())drawBG(BG1,H*.76,1.1);
+  if(!drawFundoTitle(introPan()))drawBG(BG1,H*.76,1.1);
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
