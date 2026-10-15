@@ -14,6 +14,9 @@
 /* Layout: one full-bleed canvas stage; HUD drawn in canvas; DOM overlays styled as manga panels (thick ink border, hard offset shadow). Single daylight look by design. */
 :root{
   --ink:#1b1512; --paper:#fffaf0; --muted:#5e5048; --sky:#1a88f9; --sun:#ffd23a; --ki:#ff5a2a; --red:#e4002b; --orb:#8fd8ff; --dust:#e8b066;
+  /* the CONFIRMA key's own green, sampled off assets/new/urna-*.png - the how-to
+     sentence points at that key by colour, so the two have to agree */
+  --go:#0ae046;
   --display:"Titan One",Impact,"Arial Black",sans-serif;
   --body:"M PLUS Rounded 1c","Trebuchet MS",system-ui,sans-serif;
   color-scheme:light;
@@ -37,27 +40,31 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 /* the title is wider than the card on purpose, so give it its own full-width
    box to centre inside - centring inside the narrow card box just overflows right */
 #menu .card h1{width:100vw;max-width:none;position:relative;left:50%;transform:translateX(-50%)}
-#titleLogo{display:block;width:min(92vw,748px,91vh);height:auto;margin:0 auto}
+/* +20% on 2026-10-15. The three terms are not interchangeable: the px and vh
+   caps say how big the logo may get and both grew by a fifth, while the vw
+   term is the guard that keeps it on screen. In portrait that guard is what
+   binds - the logo already spans the width - so there a fifth does not exist
+   to give; it goes to 98vw, as far as it can go without touching the edges. */
+#titleLogo{display:block;width:min(98vw,898px,109vh);height:auto;margin:0 auto}
 /* Menu exit: logo leaves left, everything else leaves right, staggered.
    The logo itself is animated rather than its h1, because that h1 already
    carries translateX(-50%) for centring and a second transform would fight it. */
 #titleLogo,#menu .card>*:not(h1){transition:transform .5s cubic-bezier(.55,.06,.68,.19)}
 #menu.leaving #titleLogo{transform:translateX(-150vw)}
-#menu.leaving .card>*:not(h1):not(#titleSpr){transform:translateX(150vw)}
-/* He holds position while the menu swipes apart, then rides the camera up. */
-@keyframes titleBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-/* only once he is actually hovering - a man standing on sand should not bob */
-#menu.leaving #titleSpr{animation:titleBob 1.5s ease-in-out infinite}
+#menu.leaving .card>*:not(h1):not(#titleFoot){transform:translateX(150vw)}
+/* The idle bob is gone: he used to hang in the air for half a second with
+   nothing to do, and it had started applying to the crouch, where a man braced
+   on the sand should certainly not be bobbing. He now crouches, leaves the
+   ground and launches in one move, so there is nothing left to idle through. */
 #menu.flying{background:transparent}
-/* The climb is an ANIMATION, not a transition. .flying removes the titleBob
-   animation and sets a new transform in one style change; Chrome takes the
-   before-change value from the running animation and refuses to start a
-   transition, so the transform snapped straight to -135vh and he vanished.
-   Firefox started it, which is why this only broke in Chrome. Swapping one
-   animation for another is defined the same way in both. */
+/* The climb is an ANIMATION, not a transition, and it has to stay one. It used
+   to swap out of a bob animation: Chrome takes the before-change value of a
+   transition from the running animation, refuses to start it, and the transform
+   snapped straight to -135vh - he vanished for the whole climb. Firefox started
+   it, which is why it only broke in Chrome. The bob is gone now, but the moment
+   anything animates this sprite again, a transition here breaks the same way. */
 @keyframes titleFly{from{transform:translateY(0)}to{transform:translateY(-135vh)}}
 #menu.flying #titleSpr{animation:titleFly var(--panMs,1625ms) cubic-bezier(.42,0,.72,.3) forwards;transition:none}
-@media (prefers-reduced-motion:reduce){#menu.leaving #titleSpr{animation:none}}
 #menu .card>*:nth-child(3){transition-delay:.03s}
 #menu .card>*:nth-child(4){transition-delay:.06s}
 #menu .card>*:nth-child(5){transition-delay:.09s}
@@ -65,25 +72,89 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 #menu .card>*:nth-child(7){transition-delay:.15s}
 #menu .card>*:nth-child(8){transition-delay:.18s}
 @media (prefers-reduced-motion:reduce){#titleLogo,#menu .card>*{transition-duration:.01s;transition-delay:0s}}
-#menu .card{gap:10px;padding-top:14px;padding-bottom:14px}
+#menu .card{gap:10px;padding-top:164px;padding-bottom:14px}   /* the title block sits 150px lower */
+/* Dust kicked up as he leaves the ground. It sits outside .card on purpose: the
+   menu swipe moves .card's children and the climb moves #titleSpr, and the dust
+   must do neither - it stays on the sand he jumped from while he goes up. No
+   z-index, just DOM order: it comes before the sprite, so it paints behind him. */
+#puff{position:absolute;left:50%;bottom:0;width:0;height:0;pointer-events:none}
+#puff i{position:absolute;left:0;top:0;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border-radius:50%;opacity:0;
+  background:radial-gradient(circle at 36% 34%,#fffaf0 0%,#e9d5b4 55%,rgba(226,196,152,0) 72%)}
+#puff.go i{animation:puffOut var(--t,420ms) cubic-bezier(.2,.65,.4,1) var(--d,0ms) forwards}
+@keyframes puffOut{
+  0%{opacity:0;transform:translate(0,0) scale(.3)}
+  16%{opacity:.92}
+  100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(var(--s,1.8))}
+}
+#puff i:nth-child(1){--dx:-46px;--dy:-2px;--s:2.1;--d:0ms;--t:430ms}
+#puff i:nth-child(2){--dx:44px;--dy:-6px;--s:2.0;--d:20ms;--t:410ms}
+#puff i:nth-child(3){--dx:-26px;--dy:-22px;--s:1.6;--d:40ms;--t:380ms}
+#puff i:nth-child(4){--dx:28px;--dy:-26px;--s:1.6;--d:30ms;--t:390ms}
+#puff i:nth-child(5){--dx:-8px;--dy:-34px;--s:1.3;--d:60ms;--t:360ms}
+#puff i:nth-child(6){--dx:12px;--dy:-12px;--s:2.4;--d:0ms;--t:450ms}
+@media (prefers-reduced-motion:reduce){#puff{display:none}}
+
+/* The how-to is a panel hung under its own heading, out of the flow, and the
+   star and the man are pushed to the floor of the screen. Between them the card
+   fills the overlay, so opening and closing the panel moves nothing: COMECAR
+   stays under the logo and he stays on the sand, which is the whole point of
+   taking the text out of the column. */
+#menu .card{height:100%;justify-content:flex-start}
+/* The star has two homes. Closed, it sits just under "Como jogar" - near enough
+   that the three read as one block, far enough off the words not to crowd them;
+   opened, the panel wants that room, so the star drops to just above him. He
+   never moves - his own auto margin keeps him on the sand either way, and the
+   open state just hands the free space from below the star to above it. This is
+   the one number to nudge if the group wants to sit tighter or looser. */
+#menu .star{margin-top:18px}
+#titleFoot{margin-top:auto;margin-bottom:100px}
+/* Do NOT try to lift the star further in the open state. It was tried at 100px,
+   both as margin-bottom and as a transform, and neither can work: on a standard
+   desktop window the open panel has already taken every pixel of slack, so the
+   star is sitting as high as the column allows. margin-bottom then has nothing
+   to take and pushes the MAN down off the bottom edge instead; a transform
+   leaves him alone but walks the star straight up onto the "Como jogar" button.
+   The only screens with room to give are very large desktops and phones, and
+   100px overshoots into the text on both. */
+#menu.howtoOpen .star{margin-top:auto;margin-bottom:50px}
+#menu.howtoOpen #titleFoot{margin-top:0}
+.howtoWrap{position:relative}
+#howtoBody{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
+  width:min(470px,92vw);display:flex;flex-direction:column;gap:10px;
+  max-height:62vh;overflow:auto;text-align:center}
+/* it is a button now, so strip the chrome and let it keep the heading's look */
+#menu .howto{background:none;border:0;padding:2px 8px;cursor:pointer;display:inline-block;white-space:nowrap;font-size:48px}
 #menu .card .row{justify-content:center}
-#menu .keys{justify-content:center}
-#menu .keys dt{text-align:right}
-#menu .keys dd{text-align:left}
 /* no paper panel behind this text any more, so it carries its own ink outline */
-#menu .card p,#menu .keys dd{color:var(--paper);text-shadow:2px 2px 0 var(--ink),1px 1px 0 var(--ink),-1px 1px 0 var(--ink),1px -1px 0 var(--ink),-1px -1px 0 var(--ink)}
-#menu .howto{color:var(--paper);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink)}
-#menu .keys dt{color:var(--sun);-webkit-text-stroke:2.5px var(--ink);paint-order:stroke fill}
+#menu .card p{color:var(--paper);text-shadow:2px 2px 0 var(--ink),1px 1px 0 var(--ink),-1px 1px 0 var(--ink),1px -1px 0 var(--ink),-1px -1px 0 var(--ink)}
+#menu .howto{color:var(--red);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink)}
+/* the key call-out inside the sentence: the display face in the CONFIRMA key's
+   green with an ink stroke - what the "Space / Mash" row used to look like. The
+   sentence reads "aperte a tecla VERDE", so the call-out is that same green and
+   not the sun yellow it started as. text-shadow:none because it would otherwise
+   inherit the paragraph's five-way ink shadow and turn to mud under the stroke. */
+#howtoBody .key{color:var(--go);-webkit-text-stroke:2.5px var(--ink);paint-order:stroke fill;text-shadow:none}
 .card h1{font-family:var(--display);font-weight:400;font-size:clamp(30px,10.5vw,86px);line-height:.88;letter-spacing:.03em;margin:0;color:var(--red);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:4px 4px 0 var(--ink);white-space:nowrap;text-align:center}
 .card h1 span{color:var(--red)}
 .card p{margin:0;line-height:1.55;color:var(--muted)}
-.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;align-items:baseline}
-.keys dt{font-family:var(--display);font-size:19px;letter-spacing:.04em;color:var(--ki);white-space:nowrap}
-.keys dd{margin:0}
+/* The how-to sentence is set large; the call-out inside it is em-based, so it
+   stays proportionally bigger without having to be retuned alongside it.
+   line-height:0.9 on the call-out stops it tearing a hole in the leading, and
+   nowrap keeps "(espaço)" from splitting across lines. */
+#menu #howtoBody p{font-size:26px;line-height:1.32}
+.key{font-family:var(--display);font-size:1.5em;line-height:.9;letter-spacing:.04em;white-space:nowrap}
 .howto{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:.04em;margin:0;color:var(--ink)}
-.star{display:flex;justify-content:center;margin-top:2px}
+.star{display:flex;justify-content:center;gap:10px;margin-top:2px;width:fit-content;margin-inline:auto}
 .star svg{display:block}
-#titleSpr{position:relative;width:100%;height:clamp(92px,17vh,165px)}
+/* #titleFoot is the patch of sand he stands on: it holds his height, and it is
+   what the layout moves around. #titleSpr climbs out of it and the dust stays
+   in it, both anchored to the same bottom edge - so the dust is at his feet by
+   construction, with nothing measured and nothing to go stale. */
+/* flex:none - he is the one thing in this column that must never be squashed to
+   make room; everything else gives first. */
+#titleFoot{position:relative;width:100%;height:clamp(92px,17vh,165px);flex:none}
+#titleSpr{position:relative;width:100%;height:100%}
 /* All three poses live in the DOM and are decoded up front. Swapping an <img>
    src at the instant the flight transform starts made Chrome rasterise the
    compositor layer before the new image had decoded, and it never repainted
@@ -92,6 +163,23 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 #titleSpr .pose{position:absolute;left:50%;bottom:0;transform:translateX(-50%);
   height:100%;width:auto;opacity:0}
 #titleSpr .pose.on{opacity:1}
+/* Each sheet draws the man at its own scale and frames him differently, so
+   sizing every pose to the frame (height:100%) quietly resized HIM between
+   poses instead of only changing the pose. Two separate problems:
+     - the crouch art is drawn 17.5% bigger than the standing art (hat brim 134
+       vs 114px, widest row 236 vs 201 - two landmarks agreeing) at the same
+       frame height, so crouching read as a zoom-in with his head staying put;
+     - the takeoff sprite spends its top ~14% on the raised fist, so only 314 of
+       its 367px are the man. Matched by frame height he came out a head shorter
+       than when standing, which is the opposite of taking off.
+   Both heights below were calibrated against the standing pose - the crouch by
+   body scale, the takeoff by his hat-to-feet height - with the feet pinned to
+   the ground by bottom:0. He is now one size through the whole move, and the
+   fist is free to reach above the frame. */
+/* (these need the #titleSpr prefix: a bare id loses to "#titleSpr .pose" above) */
+#titleSpr #poseStern{height:100%}
+#titleSpr #poseCrouch{height:84.5%}
+#titleSpr #poseFly{height:117%}      /* >100% on purpose: the fist is above his hat */
 .eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:30px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
@@ -102,18 +190,6 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 .stats{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-variant-numeric:tabular-nums}
 .stats span:nth-child(even){color:var(--ki);font-weight:800;text-align:right}
 
-#tog{position:absolute;top:10px;left:10px;max-width:calc(100% - 20px);z-index:5}
-#tog summary{list-style:none;cursor:pointer;background:var(--paper);border:3px solid var(--ink);box-shadow:3px 3px 0 var(--ink);padding:4px 12px;font-family:var(--display);font-size:19px;letter-spacing:.05em;display:inline-block}
-#tog summary::-webkit-details-marker{display:none}
-#togBody{margin-top:8px;background:var(--paper);border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:14px;display:flex;flex-direction:column;gap:14px;width:min(350px,calc(100vw - 20px));max-height:calc(100vh - 90px);overflow:auto}
-.tg{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
-.tg legend{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0;margin-bottom:7px}
-.seg{display:grid;grid-template-columns:1fr 1fr;border:2px solid var(--ink)}
-.seg label{position:relative;cursor:pointer}
-.seg label+label{border-left:2px solid var(--ink)}
-.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
-.seg span{display:block;padding:7px 8px;font-size:12px;font-weight:500;text-align:center;background:#fff}
-.seg input:checked+span{background:var(--sun);font-weight:800}
 .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
 
 #touch{position:absolute;right:16px;bottom:calc(26px + var(--urnaH,0px) + env(safe-area-inset-bottom,0px));display:flex;gap:12px;align-items:flex-end;z-index:4}
@@ -121,6 +197,30 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
 #bGuard{width:76px;height:76px;border-radius:50%;font-size:21px;background:#fff}
 #bGuard.held{background:var(--ink);color:var(--paper)}
 #bThrow{padding:10px 28px;font-size:32px;background:var(--orb)}
+/* COMECAR carries the same treatment as the "Como jogar" heading - same display
+   face, same red, same ink outline and offset shadow, and no box at all. Scoped
+   to the menu so the result screen's Again button keeps its yellow box. */
+/* One size for both options, fixed: 48px is what the old width-matching came out
+   at for COMECAR on a desktop, and COMO JOGAR now simply matches it and runs
+   wider, as the longer word should. nowrap is load-bearing - at this size a wrap
+   would break the line in half. */
+#menu .primary{background:none;border:0;box-shadow:none;padding:6px 16px;white-space:nowrap;
+  font-size:48px;letter-spacing:.04em;color:var(--red);
+  -webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--ink)}
+#menu .primary:active{transform:translate(2px,2px);box-shadow:none;text-shadow:1px 1px 0 var(--ink)}
+/* Choosing an option punches its letters: a hard overshoot, a squash past the
+   resting size, and a small settle. It is an animation rather than a transition
+   so that re-triggering it restarts cleanly, and so it overrides the :active
+   nudge while it runs instead of fighting it. */
+@keyframes punch{
+  0%{transform:scale(1)}
+  18%{transform:scale(1.26)}
+  42%{transform:scale(.92)}
+  66%{transform:scale(1.07)}
+  100%{transform:scale(1)}
+}
+#menu .punched{animation:punch .3s cubic-bezier(.25,.8,.35,1)}
+@media (prefers-reduced-motion:reduce){#menu .punched{animation:none}}
 @media (prefers-reduced-motion: reduce){ .primary:active,.ghost:active{transform:none} }
 /* ---- phone ----
    Only sizes and spacing: every screen keeps the same structure, so nothing
@@ -131,63 +231,73 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
   #touch{right:12px;bottom:calc(74px + var(--urnaH,0px) + env(safe-area-inset-bottom,0px));gap:14px}
   #bGuard{width:84px;height:84px;font-size:17px;padding:0}
   #bThrow{padding:12px 30px;font-size:34px}
-  #tog summary{font-size:16px;padding:3px 10px}
-  #menu .card{gap:7px}
-  #menu .howto{font-size:23px}
-  #menu .keys{gap:4px 10px}
-  #menu .keys dt{font-size:16px}
-  #menu .card p,#menu .keys dd{font-size:13px;line-height:1.4}
+  #menu .card{gap:7px;padding-top:194px}   /* the logo spans the width here, so it must clear the toggles button */
+  #menu .howto,#menu .primary{font-size:37px}   /* phone: the stars are smaller here too */
+  #menu .card p{font-size:13px;line-height:1.4}
+  #menu #howtoBody p{font-size:20px;line-height:1.3}
   #menu .card .hint{font-size:11px}
   .star svg{width:42px;height:40px}
 }
+/* 150px of head room and 100px under his feet is more than a 720p-tall window
+   has to give once the options are set to the width of the stars; the offsets
+   scale back here so everything still fits on screen. */
+@media (max-height:780px){
+  #menu .card{padding-top:70px}
+  #titleFoot{margin-bottom:45px}
+  #menu .star{margin-bottom:20px}
+}
+/* nothing like 150px of head room exists on a sideways phone */
+@media (max-height:520px){
+  #menu .card{padding-top:60px}
+  #titleFoot{margin-bottom:24px}
+  #menu .star{margin-bottom:16px}
+}
 /* a short phone (SE-sized, or landscape) cannot fit the full how-to column */
 @media (max-height:700px) and (max-width:900px){
-  #menu .howto{font-size:20px}
-  #menu .card p,#menu .keys dd{font-size:12px}
-  #titleSpr{height:clamp(66px,12vh,120px)}
+  #menu .howto,#menu .primary{font-size:30px}   /* short screens have to give some of it back */
+  #menu .card p{font-size:12px}
+  #menu #howtoBody p{font-size:17px;line-height:1.28}
+  #titleFoot{height:clamp(66px,12vh,120px)}
   .star{display:none}
+  /* the star is what carries margin-top:auto, so he has to carry it himself here
+     or there is nothing left to push him down to the sand */
+  #titleFoot{margin-top:auto}
 }
 </style>
 
 <div id="stage">
-  <canvas id="cv" aria-label="Vô votar no 13! game canvas"></canvas>
-
-  <details id="tog">
-    <summary>Test toggles</summary>
-    <div id="togBody"></div>
-  </details>
+  <canvas id="cv" aria-label="Vô votar no 13! tela do jogo"></canvas>
 
   <div id="touch">
-    <button class="tbtn" id="bGuard" hidden>Guard</button>
-    <button class="tbtn" id="bThrow" hidden>Throw</button>
+    <button class="tbtn" id="bGuard" hidden>Defesa</button>
+    <button class="tbtn" id="bThrow" hidden>Lançar</button>
   </div>
 
   <div class="overlay" id="menu">
     <div class="card">
       <h1><img id="titleLogo" src="assets/title-logo.png" alt="Vô votar no 13!"></h1>
       <div class="row"><button class="primary" id="bStart">COMEÇAR</button></div>
-      <h2 class="howto">Como jogar</h2>
-      <p>Raise your hands, pull energy from the whole planet, survive the hits, then land it on him.</p>
-      <dl class="keys">
-        <dt>Space / Mash</dt><dd>Gather energy (tap fast)</dd>
-        <dt>Stop</dt><dd>When he glows red, stop mashing or you take the full hit</dd>
-        <dt>Shift / Guard</dt><dd>Hold to brace (only in guard-button mode)</dd>
-        <dt>Arrows / tap</dt><dd>Phase 2: pick the cell he'll be on</dd>
-        <dt>Space / Throw</dt><dd>Release the orb</dd>
-      </dl>
-      <p class="hint">Mechanics and camera options are in Test toggles, top left.</p>
-      <div class="star" aria-hidden="true"><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg></div>
-      <div id="titleSpr" aria-hidden="true" hidden><img class="pose" id="poseStern" alt=""><img class="pose" id="poseHover" alt=""><img class="pose" id="poseFly" alt=""></div>
+      <div class="howtoWrap">
+        <button class="howto" id="bHowto" aria-expanded="false" aria-controls="howtoBody">COMO JOGAR</button>
+        <div id="howtoBody" hidden>
+          <p>APERTE a tecla verde para confirmar <span class="key">(espaço)</span>, vote no 13 !!!<br>Aperte no ritmo para aumentar o entretenimento !!!</p>
+        </div>
+      </div>
+      <div class="star" aria-hidden="true"><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg><svg viewBox="0 0 100 95" width="56" height="53"><polygon points="50,2 61.8,35.5 97,35.5 68.6,56.5 79.4,90 50,69.5 20.6,90 31.4,56.5 3,35.5 38.2,35.5" fill="var(--red)" stroke="var(--ink)" stroke-width="5" stroke-linejoin="round"/></svg></div>
+      <div id="titleFoot" aria-hidden="true">
+        <div id="titleSpr" hidden><img class="pose" id="poseStern" alt=""><img class="pose" id="poseCrouch" alt=""><img class="pose" id="poseFly" alt=""></div>
+        <div id="puff"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
     </div>
   </div>
 
   <div class="overlay" id="result" hidden>
     <div class="card">
-      <div class="eyebrow" id="rEyebrow">Result</div>
-      <h1 id="rTitle">Direct hit</h1>
+      <div class="eyebrow" id="rEyebrow">Resultado</div>
+      <h1 id="rTitle">Acertou em cheio</h1>
       <p id="rLine"></p>
       <div class="stats" id="rStats"></div>
-      <div class="row"><button class="primary" id="bRetry">Again</button><button class="ghost" id="bTogOpen">Change toggles</button></div>
+      <div class="row"><button class="primary" id="bRetry">De novo</button></div>
     </div>
   </div>
 </div>
@@ -230,50 +340,16 @@ addEventListener('orientationchange',()=>setTimeout(resize,120));
 if(window.visualViewport)visualViewport.addEventListener('resize',resize);
 resize();
 
-/* ---------- settings / toggles ---------- */
-const DEF={guard:'stop',grid:'square',aim:'shadow',throwCam:'follow',disint:'full',miss:'cold',opening:'on',planet:'toon',music:'on'};
-let S={...DEF};
-try{Object.assign(S,JSON.parse(localStorage.getItem('worldorb-toggles')||'{}'))}catch(e){}
-function saveS(){try{localStorage.setItem('worldorb-toggles',JSON.stringify(S))}catch(e){}}
-const TOGGLES=[
- ['guard','Phase 1 defense',[['stop','Just stop'],['button','Stop + guard']]],
- ['grid','Target grid',[['square','Square 3x3'],['hex','Hex, 19 cells']]],
- ['aim','Aiming view',[['shadow','A: orb shadow'],['top','B: top-down']]],
- ['throwCam','Throw camera',[['follow','A: follow orb'],['static','B: stay put']]],
- ['disint','Hit effect',[['full','Disintegrate'],['simple','Simple flash']]],
- ['miss','Miss ending',[['cold','Cold push-in'],['plain','Plain miss']]],
- ['opening','Full-orb planet shot',[['on','Play'],['off','Skip']]],
- ['planet','Planet look (if loaded)',[['toon','Toon'],['photo','Photo']]],
- ['music','Music',[['on','On'],['off','Off']]],
-];
-const tb=$('togBody');
-TOGGLES.forEach(([k,label,opts])=>{
-  const fs=document.createElement('fieldset');fs.className='tg';
-  fs.innerHTML=`<legend>${label}</legend><div class="seg">${opts.map(([v,t])=>`<label><input type="radio" id="t-${k}-${v}" name="${k}" value="${v}" ${S[k]===v?'checked':''}><span>${t}</span></label>`).join('')}</div>`;
-  fs.addEventListener('change',e=>{S[k]=e.target.value;saveS();updateTouch();if(k==='music')applyMusic();if(k==='grid'||k==='aim')warmGround();});
-  tb.appendChild(fs);
-});
-const spr=document.createElement('div');spr.className='tg';
-spr.innerHTML=`<div class="eyebrow">Hero sprites</div><p class="hint" id="sheetHint">Loading assets/hero-front2.png…</p><p class="hint" id="backHint">Loading assets/hero-back2.png…</p>`;
-tb.appendChild(spr);
-/* Longest gap between two frames, per phase. A phone cannot be profiled from
-   here, so the game measures itself and the panel reports it: whatever stalls,
-   the phase it stalled in is top of the list. */
-const perf=document.createElement('div');perf.className='tg';
-perf.innerHTML=`<div class="eyebrow">Worst frame, this run</div><p class="hint" id="perfHint">-</p>`;
-tb.appendChild(perf);
-const mus=document.createElement('div');mus.className='tg';
-mus.innerHTML=`<div class="eyebrow">Music</div><p class="hint" id="musicHint">Loading assets/sequencia-13.mp3…</p>`;
-tb.appendChild(mus);
-
-const pl=document.createElement('div');pl.className='tg';
-pl.innerHTML=`<div class="eyebrow">Planet image</div><div class="row"><label class="ghost" style="cursor:pointer">Load planet image<input type="file" id="planetIn" accept="image/*" hidden></label><button class="ghost" id="planetClear" type="button">Use built-in planet</button></div><p class="hint" id="planetHint">Optional. Replaces the built-in planet with any planet photo on a dark background, cropped to the globe automatically. Stays in this browser only.</p>`;
-tb.appendChild(pl);
-const jump=document.createElement('div');jump.className='tg';
-jump.innerHTML=`<div class="eyebrow">Test phase 2 directly</div><div class="row"><button class="ghost" data-e="30">Small orb</button><button class="ghost" data-e="70">Cross orb</button><button class="ghost" data-e="100">Full orb</button></div><p class="hint">Grid changes apply at the start of the next aiming phase.</p>`;
-jump.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;audioInit();newRun(true);G.energy=+b.dataset.e;toAim();$('tog').open=false;});
-tb.appendChild(jump);
-
+/* ---------- settings ----------
+   These were a panel of radio buttons once; the game ships on the defaults now,
+   so they are plain constants. They stay in an object because every scene reads
+   them as S.something, and because turning one into a choice again only means
+   putting a control back on top of it. Nothing is persisted: with no way to
+   change a setting, a value left in localStorage by an older build could only
+   do harm. */
+const S={guard:'stop',grid:'hex',aim:'shadow',throwCam:'follow',disint:'full',miss:'cold',opening:'on',planet:'toon',music:'on'};
+// panel-era status messages: harmless no-ops now, and correct again if a panel returns
+const hint=(id,t)=>{const e=$(id);if(e)e.textContent=t;};
 /* ---------- sprite sheet ---------- */
 let SPR=null;
 function sliceSheet(img){
@@ -303,11 +379,11 @@ function sliceSheet(img){
 function loadSheetURL(url,persist){
   const img=new Image();
   img.onload=()=>{
-    try{SPR=sliceSheet(img);}catch(e){SPR=null;$('sheetHint').textContent='Could not read hero-front2.png. Open the page through a web server, not as a local file.';return;}
-    $('sheetHint').textContent=SPR.opaque?'hero-front2.png loaded, but it has no transparency.':'hero-front2.png: 9 poses loaded.';
-    if(persist){try{localStorage.setItem('worldorb-sheet',url);}catch(e){$('sheetHint').textContent+=' (Too big to remember; reload it next time.)';}}
+    try{SPR=sliceSheet(img);}catch(e){SPR=null;hint('sheetHint','Could not read hero-front2.png. Open the page through a web server, not as a local file.');return;}
+    hint('sheetHint',SPR.opaque?'hero-front2.png loaded, but it has no transparency.':'hero-front2.png: 9 poses loaded.');
+    if(persist){try{localStorage.setItem('worldorb-sheet',url);}catch(e){}}
   };
-  img.onerror=()=>{$('sheetHint').textContent='assets/hero-front2.png not found. Using the placeholder hero.';};
+  img.onerror=()=>hint('sheetHint','assets/hero-front2.png not found. Using the placeholder hero.');
   img.src=url;
 }
 try{localStorage.removeItem('worldorb-sheet');localStorage.removeItem('worldorb-back');}catch(e){}
@@ -333,18 +409,18 @@ function sliceStrip(img){
 function loadBackURL(url,persist){
   const img=new Image();
   img.onload=()=>{
-    try{BACK=sliceStrip(img);}catch(e){BACK=null;$('backHint').textContent='Could not read hero-back2.png (needs 3 poses in a row, and a web server, not a local file).';return;}
-    $('backHint').textContent='hero-back2.png: 3 poses loaded.';
-    if(persist){try{localStorage.setItem('worldorb-back',url);}catch(e){$('backHint').textContent='Loaded 3 poses. Too big to remember; load it again next time.';}}
+    try{BACK=sliceStrip(img);}catch(e){BACK=null;hint('backHint','Could not read hero-back2.png (needs 3 poses in a row, and a web server, not a local file).');return;}
+    hint('backHint','hero-back2.png: 3 poses loaded.');
+    if(persist){try{localStorage.setItem('worldorb-back',url);}catch(e){}}
   };
-  img.onerror=()=>{$('backHint').textContent='assets/hero-back2.png not found. Phase 1 uses the front sheet or the placeholder.';};
+  img.onerror=()=>hint('backHint','assets/hero-back2.png not found. Phase 1 uses the front sheet or the placeholder.');
   img.src=url;
 }
 loadBackURL('assets/hero-back2.png',false);
 /* Title-screen character, two poses. Each sheet holds the same figure at three
    scales on green; sliceStrip keys the green and splits the row, and we keep the
    last (smallest) figure of each. Hovering on the menu, fist-up once he takes off. */
-const POSE={stern:$('poseStern'),hover:$('poseHover'),fly:$('poseFly')};
+const POSE={stern:$('poseStern'),crouch:$('poseCrouch'),fly:$('poseFly')};
 function setTitleSprite(name){
   const el=$('titleSpr');if(!el||!POSE[name]||!POSE[name].src)return;
   for(const k in POSE)POSE[k].classList.toggle('on',k===name);
@@ -361,9 +437,15 @@ function loadPose(file,el,after){const i=new Image();
 // standing on the menu...
 loadPose('assets/new/Three Stern Suit-Wearing Elders.png',POSE.stern,
   ()=>{if(INTRO.state==='idle')setTitleSprite('stern');});
-// ...lifting off the ground once COMECAR is hit, then climbing fist-first.
+// ...a glimpse of him braced to jump the moment COMECAR is hit...
+// (same sheet dimensions and the same three scales as the standing sheet, so its
+//  smallest figure is 411px tall against the standing one's 414 - the pose reads
+//  as a crouch through the widened stance, not through height, and .pose's
+//  height:100% needs no correction for it.)
+loadPose('assets/new/Three Stern Suit-Clad Figures.png',POSE.crouch);
+// ...and straight out of it into the climb, fist-first. There is no hovering
+// frame in between any more: he crouches and goes.
 // Both are pre-decoded so neither swap can flash mid-transition.
-loadPose('assets/new/Arms-down hovering sprite trio.png',POSE.hover);
 loadPose('assets/new/Three-scale Lula takeoff sprite sheet.png',POSE.fly);
 function drawCanvasSprite(s,x,feetY,h,o={}){
   const w=s.width*h/s.height;ctx.save();if(o.glow){ctx.shadowColor=`rgba(159,232,255,${o.glow})`;ctx.shadowBlur=26;}
@@ -445,7 +527,6 @@ const RIDGE=Array.from({length:40},(_,i)=>Math.sin(i*1.7)*.5+Math.sin(i*.43)*.8+
 /* ---------- game state ---------- */
 let G={phase:'menu',t:0,pt:0};
 function newRun(skipToNothing){
-  PERF={};
   G={phase:'gather',t:0,pt:0,energy:0,hp:100,gTime:0,gLimit:30,mashTimes:[],lastMash:-9,guardHeld:false,
      atk:{state:'idle',timer:2.4,dur:1},cut50:false,cut100:false,cutaway:0,cutTotal:1,endAfterCut:false,
      closeup:0,shake:0,orbs:[],pops:[],nextTick:0,level:1,hits:0,braces:0,boomed:false};
@@ -490,7 +571,7 @@ function covered(center,level){
   });
 }
 function neighbors(c){return G.cells.filter(o=>gdist(o,c).man===1);}
-const LEVELNAME=()=>G.gridKind==='square'?['Small · 1 cell','Cross · 5 cells','Full · 9 cells'][G.level-1]:['Small · 1 cell','Ring · 7 cells','Full · 19 cells'][G.level-1];
+const LEVELNAME=()=>G.gridKind==='square'?['Pequena · 1 casa','Cruz · 5 casas','Cheia · 9 casas'][G.level-1]:['Pequena · 1 casa','Anel · 7 casas','Cheia · 19 casas'][G.level-1];
 
 function toAim(){
   G.gridKind=S.grid;const g=buildGrid(S.grid);G.cells=g.cells;G.R=g.R;
@@ -545,8 +626,9 @@ function aimMove(dx,dz){
 addEventListener('keydown',e=>{
   const k=e.code;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
-  // any key starts the run, except while the player is in the toggles panel
-  if(G.phase==='menu'&&!(e.target&&e.target.closest&&e.target.closest('#tog'))){beginStart();return;}
+  // any key starts the run, except on the Como jogar control, where a key press
+  // means "open this"
+  if(G.phase==='menu'&&!(e.target&&e.target.closest&&e.target.closest('.howtoWrap'))){beginStart();return;}
 
   if(k==='ShiftLeft'||k==='ShiftRight'||k==='KeyK'){setGuard(true);return;}
   if(e.repeat)return;
@@ -577,9 +659,35 @@ cv.addEventListener('pointerdown',e=>{
   }
 });
 function inPoly(x,y,pts){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
+/* pointerdown so it lands with the finger rather than after it lifts; the
+   click branch is for keyboard activation, which reports detail 0 */
+function punch(el){el.classList.remove('punched');void el.offsetWidth;el.classList.add('punched');}
+for(const el of [$('bStart'),$('bHowto')]){
+  el.addEventListener('pointerdown',()=>punch(el));
+  el.addEventListener('click',e=>{if(!e.detail)punch(el);});
+}
+const howtoBtn=$('bHowto');
+/* The open panel floats over the column, so on a short window its text can reach
+   the stars it just pushed down to. Rather than guess a breakpoint, measure:
+   the stars step aside only when the panel actually arrives on top of them, so
+   they stay visible on a phone and on a tall screen, where there is room. */
+function placeStars(){
+  const star=document.querySelector('#menu .star');
+  if(!star)return;
+  if(howtoBtn.getAttribute('aria-expanded')!=='true'){star.style.visibility='';return;}
+  const panel=$('howtoBody').getBoundingClientRect(), sr=star.getBoundingClientRect();
+  star.style.visibility=sr.top<panel.bottom+6?'hidden':'';
+}
+howtoBtn.addEventListener('click',()=>{
+  const open=howtoBtn.getAttribute('aria-expanded')==='true';
+  howtoBtn.setAttribute('aria-expanded',open?'false':'true');
+  $('howtoBody').hidden=open;
+  $('menu').classList.toggle('howtoOpen',!open);
+  placeStars();
+});
+addEventListener('resize',placeStars);
 $('bStart').addEventListener('click',beginStart);
 $('bRetry').addEventListener('click',()=>{audioInit();newRun();});
-$('bTogOpen').addEventListener('click',()=>{$('tog').open=true;});
 function updateTouch(){
   $('bGuard').hidden=!(G.phase==='gather'&&S.guard==='button');
   $('bThrow').hidden=G.phase!=='aim';
@@ -647,24 +755,14 @@ function resolveAttack(){
   else dmg=G.guardHeld?2:(recent?22:12);
   G.hp-=dmg;
   if(dmg>=10){G.hits++;G.lastHitT=G.t;G.closeup=.5;G.shake=.5;sfxHit(true);G.energy=Math.max(0,G.energy-6);
-    G.pops.push({text:recent?'CAUGHT MASHING!':'NO GUARD!',c:'#ff5a2a',t:0});}
-  else{G.braces++;G.shake=.15;sfxHit(false);G.pops.push({text:'BRACED!',c:'#ffd23a',t:0});}
+    G.pops.push({text:recent?'PEGOU APERTANDO!':'SEM DEFESA!',c:'#ff5a2a',t:0});}
+  else{G.braces++;G.shake=.15;sfxHit(false);G.pops.push({text:'DEFENDEU!',c:'#ffd23a',t:0});}
 }
 
 /* ---------- main loop ---------- */
-let last=performance.now(),PERF={},perfN=0;
-const TOG=$('tog');   // hoisted: this is read every frame
-function showPerf(){
-  const h=$('perfHint');if(!h)return;
-  const ks=Object.keys(PERF).sort((a,b)=>PERF[b]-PERF[a]);
-  h.textContent=ks.length?ks.map(k=>k+' '+Math.round(PERF[k])).join(' \u00b7 ')+' ms':'-';
-}
+let last=performance.now();
 function loop(now){
-  const gap=now-last;
-  const dt=Math.min(.05,gap/1000);last=now;
-  // frame 1 measures the wait for the first animation frame, not a stall
-  if(perfN++>2&&gap>(PERF[G.phase]||0))PERF[G.phase]=gap;
-  if(perfN%15===0&&TOG.open)showPerf();
+  const dt=Math.min(.05,(now-last)/1000);last=now;
   G.t+=dt;G.pt+=dt;
   introTick(dt);
   update(dt);
@@ -674,6 +772,10 @@ function loop(now){
 }
 function update(dt){
   switch(G.phase){
+    case 'corridor':
+      while(G.corrBeat<G.corrHits.length&&G.pt>=G.corrHits[G.corrBeat])corridorHit(G.corrBeat++);
+      if(G.pt>=corrEnd())newRun();
+      break;
     case 'fullShot': if(G.pt>=3.6)toSilence(); break;
     case 'gather': updGather(dt); break;
     case 'silence': if(G.pt>=1.5)toAim(); break;
@@ -690,14 +792,14 @@ const throwDur=()=>S.throwCam==='follow'?(G.hit?1.4:.95):.95;
 
 function showResult(kind){
   setPhase('result');G.resultKind=kind;setHum(.02);
-  const T={win:['Direct hit','He is gone. The planet gave you enough.'],
-           miss:['Missed','He read you, or you read him wrong.'],
-           defeat:['You fell','Too many hits while gathering. Stop mashing when he glows.']}[kind];
-  $('rEyebrow').textContent=kind==='defeat'?'Phase 1':'Phase 2';
+  const T={win:['Acertou em cheio','Ele se foi. O planeta te deu energia suficiente.'],
+           miss:['Errou','Ele te leu, ou você leu ele errado.'],
+           defeat:['Você caiu','Levou golpes demais juntando energia. Pare de apertar quando ele brilhar.']}[kind];
+  $('rEyebrow').textContent=kind==='defeat'?'Fase 1':'Fase 2';
   $('rTitle').textContent=T[0];$('rLine').textContent=T[1];
-  const rows=[['Energy gathered',Math.round(G.energy)+'%'],['Health left',Math.max(0,Math.round(G.hp))],['Full hits taken',G.hits],['Attacks braced',G.braces]];
-  if(G.cells&&kind!=='defeat')rows.push(['Orb size',LEVELNAME()]);
-  rows.push(['Defense mode',S.guard==='stop'?'Just stop':'Stop + guard']);
+  const rows=[['Energia juntada',Math.round(G.energy)+'%'],['Vida restante',Math.max(0,Math.round(G.hp))],['Golpes cheios levados',G.hits],['Ataques defendidos',G.braces]];
+  if(G.cells&&kind!=='defeat')rows.push(['Tamanho da genki dama',LEVELNAME()]);
+  rows.push(['Modo de defesa',S.guard==='stop'?'Só parar':'Parar + defender']);
   $('rStats').innerHTML=rows.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('');
   $('result').hidden=false;
 }
@@ -780,11 +882,11 @@ function buildPlanet(img){
 function loadPlanetURL(url,persist){
   const img=new Image();
   img.onload=()=>{
-    try{PLANET=buildPlanet(img);}catch(e){PLANET=null;$('planetHint').textContent='Could not read that image.';return;}
-    $('planetHint').textContent='Planet loaded and cropped to the globe. Remembered in this browser.';
-    if(persist){try{localStorage.setItem('worldorb-planet',PLANET.photo.toDataURL('image/jpeg',.88));}catch(e){$('planetHint').textContent='Planet loaded. Too big to remember; load it again next time.';}}
+    try{PLANET=buildPlanet(img);}catch(e){PLANET=null;hint('planetHint','Could not read that image.');return;}
+    hint('planetHint','Planet loaded and cropped to the globe.');
+    if(persist){try{localStorage.setItem('worldorb-planet',PLANET.photo.toDataURL('image/jpeg',.88));}catch(e){}}
   };
-  img.onerror=()=>{$('planetHint').textContent='Could not open that file.';};
+  img.onerror=()=>hint('planetHint','Could not open that file.');
   img.src=url;
 }
 
@@ -940,15 +1042,28 @@ function opening(){
    doubles as the already-going guard so a second press cannot restart it --
    the same shape title.js uses in batidao de coco. */
 const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
-const MENU_OUT_MS=REDUCED?80:700, SKY_PAN_MS=REDUCED?120:1625;   // pan 30% slower than the first pass
+/* The takeoff is two beats: he drops into a crouch the instant COMECAR is hit,
+   and lifts straight out of it a glimpse later - the climb starts the frame the
+   crouch ends, so there is no moment where he is simply off the ground. The
+   menu keeps swiping away underneath on its own CSS clock, so this stage only
+   has to cover the crouch. */
+const CROUCH_MS=REDUCED?25:150;
+const MENU_OUT_MS=CROUCH_MS, SKY_PAN_MS=REDUCED?120:1625;   // pan 30% slower than the first pass
 // one source of truth for the climb: the sprite's CSS flight reads this too
 document.documentElement.style.setProperty('--panMs',SKY_PAN_MS+'ms');
 let INTRO={state:'idle',t:0};
 function beginStart(){
   if(INTRO.state!=='idle'||G.phase!=='menu')return;
   audioInit();tone('square',520,780,.09,.07);
-  INTRO.state='out';INTRO.t=0;$('menu').classList.add('leaving');
-  setTitleSprite('hover');   // off the ground the moment the menu starts to clear
+  INTRO.state='out';INTRO.t=0;$('menu').classList.add('leaving');$('puff').classList.remove('go');
+  setTitleSprite('crouch');   // braced, still on the sand
+}
+/* Where the dust appears is CSS's problem (#puff sits at the bottom of the same
+   box the sprite stands in), so this only has to start it. Removing and
+   re-adding the class with a reflow between restarts the animation. */
+function kickDust(){
+  if(REDUCED)return;
+  const p=$('puff');p.classList.remove('go');void p.offsetWidth;p.classList.add('go');
 }
 function introTick(dt){
   if(INTRO.state==='idle')return;
@@ -957,10 +1072,11 @@ function introTick(dt){
     if(INTRO.t>=MENU_OUT_MS){INTRO.state='pan';INTRO.t=0;
       // the menu stays in the DOM so he can keep flying over the climbing sky;
       // everything else is already parked off screen by the swipe
+      kickDust();
       $('menu').classList.add('flying');setTitleSprite('fly');tone('sine',200,560,1.3,.1);}
   }else if(INTRO.t>=SKY_PAN_MS){
     INTRO.state='idle';INTRO.t=0;$('menu').hidden=true;
-    $('menu').classList.remove('leaving','flying');newRun();
+    $('menu').classList.remove('leaving','flying');toCorridor();
   }
 }
 function introPan(){return INTRO.state==='pan'?ease(clamp(INTRO.t/SKY_PAN_MS,0,1)):0;}
@@ -969,6 +1085,131 @@ function titleScene(){
   // hero, the enemy, the energy orb and its ground light pool with it. A new, much
   // smaller character sprite goes here instead.
   if(!drawFundoTitle(introPan()))drawBG(BG1,H*.76,1.1);
+}
+
+/* ---------- scene 2: the cloud corridor ----------
+   Sits between the takeoff and the fight. The menu pan ends with the camera at
+   the top of fundo-1 and still climbing, so this picks that climb up on a fresh
+   backdrop and carries it to a stop. It runs slower than the pan on purpose:
+   the takeoff is the burst, this is the long coast at the top of it. */
+const CORR=new Image();CORR.src='assets/Anime Sky Cloud Corridor.png';
+// decode it while the menu is up, so the cut into the climb does not hitch on a
+// first-draw of a 1111x1416 png (same reason the floor is warmed up there)
+CORR.addEventListener('load',()=>{CORR.decode&&CORR.decode().catch(()=>{});});
+/* Screens of vertical climb. A landscape window cover-fits that image to its
+   width and already has more slack than this asks for; a phone cover-fits to
+   height and would have none at all, so in portrait the climb is what sets the
+   scale, and the frame shows the middle ~40% of the image - the corridor itself. */
+const CORR_CLIMB=()=>PORT?.55:1;
+/* The kick swings past its resting size and settles back THROUGH it, so for part
+   of a second the frame is smaller than the screen. The canvas is never cleared -
+   every scene here paints full bleed - so a frame that does not reach an edge
+   leaves the previous one showing in the strip. Both margins below are sized off
+   that undershoot: CORR_OVER widens the art, CORR_TOP keeps sky above the locked
+   frame (pan 1 pins the image's top edge to y=0, and the kick scales about the
+   centre, which pulls that edge down). */
+const CORR_KICK=.05;                 // the punch, as a fraction of frame size
+const CORR_DIP=CORR_KICK/3;          // how far under 1 the envelope bottoms out
+const CORR_OVER=1+CORR_DIP*2, CORR_TOP=()=>H*CORR_DIP;
+/* One damped swing: full at the start, through zero a third of the way in, one
+   shallow undershoot, home. The frame kick and the urna's entrance both ride it,
+   so the two land and settle as a single hit rather than two events. */
+const kickEnv=q=>(1-q)*Math.cos(q*Math.PI*1.5);
+/* The urna arrives on the frame the lock does. It is drawn OUTSIDE the camera
+   kick, on its own anchor: what it was asked for is the bottom edge, centred,
+   almost touching - and a camera scaling about the screen centre would shove it
+   past that edge and drag it back. So it gets a swing of its own, deeper than
+   the camera's, because this one is an entrance and not a stop. */
+const CORR_URNA_KICK=.22;
+// ...and a shallower one on the two stabs after it: by then it is already there,
+// so those are accents, not arrivals.
+const CORR_URNA_ACCENT=.11;
+/* Planted on the bottom edge, not hovering over it. Two parts, both measured in
+   the machine's own drawn height so they hold at every screen size:
+   URNA_FILM is the empty strip the art carries under the machine (rows 1007-1023
+   of 1024 are transparent), which is what made a rect flush with the edge still
+   leave it floating; CORR_URNA_SINK is the little bit more that tucks its feet
+   under the edge, so it reads as resting on the frame rather than above it.
+   The kick scales about this same point, so the machine's base stays below the
+   edge through the whole swing - at no size and no moment does it lift off. */
+const URNA_FILM=.0166, CORR_URNA_SINK=.03;
+const CORR_RISE=REDUCED?.12:2.2;    // s of climb, when there is no song to climb against
+const CORR_PUNCH=REDUCED?.05:.42;   // s for a kick to settle
+const CORR_HOLD=REDUCED?.05:.55;    // s of locked frame after the last one, before the fight opens
+/* ---- the scene punches on the beat ----
+   sequencia-13.mp3 opens quiet and then lands four identical stabs, evenly
+   spaced, before the groove comes in at ~5.7s. These are the last three of them,
+   in seconds from the top of the song: taking the last three rather than the
+   first means the run of stabs and the run of punches finish on the same hit
+   instead of leaving one hanging over the cut. Measured off the file by onset
+   strength, so if the track is ever replaced these are what have to change. */
+const CORR_BEATS=[4.191,4.644,5.108];
+const CORR_BEAT_GAP=(CORR_BEATS[2]-CORR_BEATS[0])/2;   // the song's own spacing, ~131bpm
+/* Scene-relative times for the three punches, i.e. seconds into this phase.
+   audioInit() runs on the very press that starts the intro, so the song should
+   be ~1.8s in by the time we get here and the first stab still ahead - but
+   play() is async and a slow start would drag every punch off the beat, so read
+   where the song ACTUALLY is and let that set the length of the climb. The
+   fallback keeps the song's tempo even when it cannot keep its phase: music
+   blocked, file missing, or the page opened over file:// where the media element
+   cannot be routed through WebAudio at all. */
+function corridorHits(){
+  const st=(MUSIC&&!MUSIC.paused&&MUSIC.currentTime>0)?MUSIC.currentTime:-1;
+  const lead=CORR_BEATS[0]-st;
+  if(st>0&&lead>=CORR_RISE*.55&&lead<=CORR_RISE*1.9)return CORR_BEATS.map(b=>lead+b-CORR_BEATS[0]);
+  return [0,1,2].map(i=>CORR_RISE+i*CORR_BEAT_GAP);
+}
+const corrEnd=()=>G.corrHits[G.corrHits.length-1]+CORR_PUNCH+CORR_HOLD;
+/* The song plays the stab; this is the weight under it. The first hit is the
+   loudest because it is also the urna's entrance, and it alone gets the bright
+   blip - the machine's own voice, once, as it lands. */
+function corridorHit(i){
+  const v=i?.7:1;
+  tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
+  if(!i)tone('square',880,440,.09,.045);
+}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+/* pan 0 = the near clouds at the bottom of the image, pan 1 = its top. Same
+   direction the menu pan travels, so the cut keeps moving the way it was going. */
+function drawCorridor(pan){
+  if(!CORR.complete||!CORR.naturalWidth){ctx.fillStyle=SKY;ctx.fillRect(0,0,W,H);return;}
+  const iw=CORR.naturalWidth,ih=CORR.naturalHeight;
+  const s=Math.max(W/iw,H*(1+CORR_CLIMB())/ih)*CORR_OVER,w=iw*s,h=ih*s;
+  ctx.drawImage(CORR,(W-w)/2,lerp(H-h,-CORR_TOP(),pan),w,h);
+}
+/* URNA[0] is the idle frame - the mash animation is the fight's, not this
+   scene's. Anchored bottom-centre so the swing breathes around that edge
+   instead of sliding the machine along it. */
+function corridorUrna(kick,q){
+  const im=URNA[0];
+  if(!im.complete||!im.naturalWidth)return;
+  // wide art (1536x1024); a phone gives it nearly the full width, a desktop a
+  // share of it, and both are capped against the height so it stays an object
+  // sitting at the bottom of the sky rather than a wall across it
+  const w=Math.min(W*(PORT?.69:.34),H*.32/URNA_AR), h=w*URNA_AR;
+  const s=1+kick*kickEnv(q);
+  ctx.save();ctx.translate(W/2,H+(URNA_FILM+CORR_URNA_SINK)*h);ctx.scale(s,s);
+  ctx.drawImage(im,-w/2,-h,w,h);
+  ctx.restore();
+}
+function corridorScene(){
+  const t=G.pt, hits=G.corrHits;
+  // the climb ends on the first stab; after that the camera is locked and only
+  // the kicks move it
+  const pan=ease(clamp(t/hits[0],0,1));
+  /* Which punch we are inside, and how far through its swing. Walking the list
+     rather than tracking an index means a dropped frame cannot leave the scene
+     stuck mid-kick: the swing is always read off the clock. */
+  let n=-1,q=0;
+  for(let i=0;i<hits.length;i++)if(t>=hits[i]){n=i;q=clamp((t-hits[i])/CORR_PUNCH,0,1);}
+  /* The kick: the frame overshoots its resting size by a hair and settles back
+     through one damped swing. It has to read as a hit, not a bounce, so there is
+     exactly one crossing and no second rise. */
+  const k=1+CORR_KICK*(n<0?0:kickEnv(q));
+  ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
+  drawCorridor(pan);
+  ctx.restore();
+  if(n>=0)corridorUrna(n?CORR_URNA_ACCENT:CORR_URNA_KICK,q);
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
@@ -1018,18 +1259,18 @@ function gatherHUD(){
   if(PORT){
     // side by side on the strip between his feet and the dock
     const bw=(W-42)/2,by=SH-30;
-    bar(14,by,bw,13,G.energy/100,ORB_B,'ENERGY '+Math.round(G.energy)+'%');
-    bar(W/2+7,by,bw,13,G.hp/100,G.hp<35?KI:'#5fcf5f','HEALTH '+Math.max(0,Math.round(G.hp)));
+    bar(14,by,bw,13,G.energy/100,ORB_B,'ENERGIA '+Math.round(G.energy)+'%');
+    bar(W/2+7,by,bw,13,G.hp/100,G.hp<35?KI:'#5fcf5f','VIDA '+Math.max(0,Math.round(G.hp)));
   }else{
     const bw=Math.min(270,W*.42),x=18,y=H-62-(W<560?118:0);
-    bar(x,y,bw,14,G.energy/100,ORB_B,'ENERGY '+Math.round(G.energy)+'%');
-    bar(x,y+40,bw,14,G.hp/100,G.hp<35?KI:'#5fcf5f','HEALTH '+Math.max(0,Math.round(G.hp)));
+    bar(x,y,bw,14,G.energy/100,ORB_B,'ENERGIA '+Math.round(G.energy)+'%');
+    bar(x,y+40,bw,14,G.hp/100,G.hp<35?KI:'#5fcf5f','VIDA '+Math.max(0,Math.round(G.hp)));
   }
   // in portrait the whole top block drops below the Test toggles button
   const top=PORT?72:50, ty=top+8, tw=PORT?W*.62:Math.min(300,W*.42);
   rr(W/2-tw/2,ty,tw,9,4);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,ty,tw,9,4);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,ty,tw*(1-G.gTime/G.gLimit),9);ctx.restore();rr(W/2-tw/2,ty,tw,9,4);inkStroke(2.5);
-  comic("HE WON'T WAIT FOREVER",W/2,top,18,'#fff','center');
-  label(S.guard==='stop'?'Mash. Stop when he glows.':'Mash. Hold guard when he glows.',W/2,PORT?top+34:H-18-(W<560?118:0),{align:'center',size:13});
+  comic('ELE NÃO VAI ESPERAR PRA SEMPRE',W/2,top,18,'#fff','center');
+  label(S.guard==='stop'?'Aperte. Pare quando ele brilhar.':'Aperte. Segure a defesa quando ele brilhar.',W/2,PORT?top+34:H-18-(W<560?118:0),{align:'center',size:13});
   drawUrna();
   for(const p of G.pops){const a=1-p.t/1.1;ctx.globalAlpha=clamp(a*1.5,0,1);
     comic(p.text,W/2,(PORT?SH*.5:H*.52)-p.t*36,Math.round(Math.min(W,H)*.085*(1+.25*Math.max(0,.2-p.t)*5)),p.c,'center',-.06);ctx.globalAlpha=1;}
@@ -1087,7 +1328,7 @@ function cutawayScene(){
   const sr=Math.min(W,H)*(.08+G.energy/100*.22);
   if(SPR){const hh=Math.min(W,H)*.3;drawHeroSprite(2,1,cx,cy+hh*.55,hh,{glow:.4});drawSphere(cx,cy-hh*.45-sr*.55,sr,G.t,.8);}
   else{circ(cx,cy,4);ctx.fillStyle=INK;ctx.fill();drawSphere(cx,cy,sr,G.t,.85);}
-  comic(G.energy>=100?'FULL!':'HALFWAY!',W/2,H-30,Math.round(Math.min(W,H)*.09),SUN,'center',-.04);
+  comic(G.energy>=100?'CHEIA!':'METADE!',W/2,H-30,Math.round(Math.min(W,H)*.09),SUN,'center',-.04);
 }
 
 /* ---------- aiming projection ---------- */
@@ -1261,9 +1502,9 @@ function aimScene(showUI){
   if(showUI){
     const tw=Math.min(300,W*.5),ty=PORT?56:18;
     rr(W/2-tw/2,ty,tw,10,5);ctx.fillStyle='#fff8e6';ctx.fill();ctx.save();rr(W/2-tw/2,ty,tw,10,5);ctx.clip();ctx.fillStyle=KI;ctx.fillRect(W/2-tw/2,ty,tw*(1-G.pt/G.aimLimit),10);ctx.restore();rr(W/2-tw/2,ty,tw,10,5);inkStroke(2.5);
-    comic('WATCH HIS BODY. PICK WHERE HE WILL BE.',W/2,ty+36,Math.round(clamp(W*.035,16,24)),'#fff','center');
-    if(PORT)comic('ORB: '+LEVELNAME().toUpperCase(),W/2,ty+64,18,ORB_B,'center');
-    else comic('ORB: '+LEVELNAME().toUpperCase(),18,H-24-(W<560?96:0),20,ORB_B);
+    comic('OLHE O CORPO DELE. ESCOLHA A CASA.',W/2,ty+36,Math.round(clamp(W*.035,16,24)),'#fff','center');
+    if(PORT)comic('GENKI DAMA: '+LEVELNAME().toUpperCase(),W/2,ty+64,18,ORB_B,'center');
+    else comic('GENKI DAMA: '+LEVELNAME().toUpperCase(),18,H-24-(W<560?96:0),20,ORB_B);
   }
 }
 function throwScene(){
@@ -1364,6 +1605,7 @@ function pushinScene(){
 function draw(){
   switch(G.phase){
     case 'menu': titleScene();break;
+    case 'corridor': corridorScene();break;
     case 'fullShot': opening();break;
     case 'gather':
       if(G.cutaway>0)cutawayScene();
@@ -1379,7 +1621,7 @@ function draw(){
     case 'orbitHit': orbitScene(false);break;
     case 'orbitMiss': orbitScene(true);break;
     case 'pushin': pushinScene();break;
-    case 'missText': aimScene(false);comic('MISS!',W/2,H*.48,Math.round(Math.min(W,H)*.2),'#fff','center',-.05);break;
+    case 'missText': aimScene(false);comic('ERROU!',W/2,H*.48,Math.round(Math.min(W,H)*.2),'#fff','center',-.05);break;
     case 'result':
       if(G.resultKind==='defeat'){drawBG(BG1,H*.76,1.1);}
       else{drawBG(BG2,H*.44,1.05);if(G.resultKind==='miss')enemyS(ctx,0,W*.78,H*.42+Math.sin(G.t*1.2)*4,Math.min(W,H)*.26,{aura:false});}
@@ -1387,9 +1629,8 @@ function draw(){
   }
 }
 
-$('planetIn').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>loadPlanetURL(r.result,true);r.readAsDataURL(f);});
-$('planetClear').addEventListener('click',()=>{PLANET=null;try{localStorage.removeItem('worldorb-planet');}catch(e){}$('planetHint').textContent='Using the built-in planet.';});
-try{const sp=localStorage.getItem('worldorb-planet');if(sp)loadPlanetURL(sp,false);}catch(e){}
+// the custom-planet loader lived in the panel; the game uses assets/planet.jpg
+try{localStorage.removeItem('worldorb-planet');}catch(e){}
 
 newRun(true);G.phase='menu';$('menu').hidden=false;
 updateTouch();
