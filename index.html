@@ -1682,15 +1682,33 @@ function corridorWorld(t){
      top of a kick. */
   const rd=Math.min(CORR_URNA_RISE,hits[0]);
   const rise=easeOut(clamp((t-(hits[0]-rd))/rd,0,1));
-  // him first, then the machine on top of him - he comes up BEHIND it
+  /* Him, and him only. The machine used to be drawn here, on top of him - it is
+     the compositor's now (see corrUrnaNow), because it no longer travels with
+     this screen. He still comes up BEHIND it, since it is drawn after all of
+     this rather than before. */
   if(rise>0){
     const hov=clamp((t-hits[0])/CORR_MAN_HOVER_IN,0,1);
     corridorMan(rise,n===0?CORR_MAN_STAB:0,q,Math.sin(G.t*CORR_MAN_HOVER_W)*H*CORR_MAN_HOVER*hov);
-    corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
   }
   corridorLogo(t);   // over everything, including him
   corridorCta(t);    // ...and the bands over everything too
   corridorBack(t);
+}
+/* The machine is a fixture of this phase now, not part of its scenery: the
+   screen slides to the antagonist and fades to the globe, and it stays exactly
+   where it is through both, lit the whole time. So it is drawn by the
+   compositor, last and untransformed, instead of inside corridorWorld - which
+   is also what keeps it off the strip and out from under the veil. Its own
+   entrance and its own kicks are unchanged; it is only the camera it has
+   stopped listening to. The stab it is on has to be worked out again here,
+   because corridorWorld keeps that to itself. */
+function corrUrnaNow(t){
+  const hits=G.corrHits;
+  let n=-1,q=0;
+  for(let i=0;i<hits.length;i++)if(t>=hits[i]){n=i;q=clamp((t-hits[i])/CORR_PUNCH,0,1);}
+  const rd=Math.min(CORR_URNA_RISE,hits[0]);
+  const rise=easeOut(clamp((t-(hits[0]-rd))/rd,0,1));
+  if(rise>0)corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
 }
 /* The compositor. Nothing happens here at all until the trip starts, so the
    scene draws exactly as it did before this existed. During the trip the two
@@ -1706,15 +1724,16 @@ function corridorScene(){
   if(fade){
     if(fade.shot>=0)opening(fade.shot);else corridorWorld(t);
     if(fade.veil>0){ctx.fillStyle='rgba(0,0,0,'+fade.veil.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
-    return;
+    corrUrnaNow(t);return;   // over the black: the machine does not go dark
   }
-  if(p<=0&&lock<0){corridorWorld(t);return;}
+  if(p<=0&&lock<0){corridorWorld(t);corrUrnaNow(t);return;}
   const q=lock>=0?clamp(lock/CORR_PUNCH,0,1):1;
   const k=1+CORR_ANTA_KICK*lockEnv(q);
   ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
   if(p<1){ctx.save();ctx.translate(-p*W,0);corridorWorld(t);ctx.restore();}
   if(p>0){ctx.save();ctx.translate((1-p)*W,0);drawAntagonist();ctx.restore();}
   ctx.restore();
+  corrUrnaNow(t);   // outside the strip AND outside the lock pop: it holds still
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
