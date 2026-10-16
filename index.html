@@ -1312,9 +1312,14 @@ const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V2.jpg');
 ANTA.addEventListener('load',()=>{ANTA.decode&&ANTA.decode().catch(()=>{});});
 const corrAntaIn=()=>corrSong(CORR_VOX-CORR_LOGO_LEAD)+CORR_LOGO_HOLD+CORR_LOGO_OUT+CORR_ANTA_WAIT;
 const CORR_ANTA_TRIP=()=>CORR_ANTA_SLIDE*2+CORR_ANTA_HOLD;
-// true for the whole round trip, not just the part parked on him - there is
-// nothing to press while the screen is moving either
 const corrAnta=t=>{const a=t-corrAntaIn();return a>=0&&a<CORR_ANTA_TRIP();};
+/* Nothing CHARGES until the screen has been to him and come back. The machine
+   still takes a press the whole time - the key lights, the box jolts, the sound
+   is there - it just has nothing to pour into yet: the opening of this scene is
+   his entrance and the song's, not a thing to be played. The ball starts at the
+   frame the slide sets down, which is also the beat before the lettering lands
+   to ask for it. */
+const corrCharging=t=>t>=corrAntaIn()+CORR_ANTA_TRIP();
 /* How far along the strip we are: 0 the corridor, 1 the antagonist. The two are
    drawn as if pasted side by side - the corridor at -p*W, him at (1-p)*W - so
    between them they always cover the frame exactly, whatever p is. `lock` is
@@ -1519,8 +1524,13 @@ function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlo
    is waiting underneath when the screen comes back. */
 function corrMash(){
   if(G.phase!=='corridor')return;
-  G.corrE=Math.min(corrCap(),(G.corrE||0)+CORR_MASH_GAIN);
+  /* The press is registered first and unconditionally: G.lastMash is what the
+     machine animates off, and it answers every press of the phase, including
+     the ones before there is anything to charge and the ones landed while the
+     screen is away. What the press is WORTH is the question below it. */
   G.lastMash=G.t;
+  if(!corrCharging(G.pt))return;
+  G.corrE=Math.min(corrCap(),(G.corrE||0)+CORR_MASH_GAIN);
 }
 /* pan 0 = the near clouds at the bottom of the image, pan 1 = its top. Same
    direction the menu pan travels, so the cut keeps moving the way it was going. */
