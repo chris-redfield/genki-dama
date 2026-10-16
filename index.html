@@ -109,15 +109,24 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
    the one number to nudge if the group wants to sit tighter or looser. */
 #menu .star{margin-top:18px}
 #titleFoot{margin-top:auto;margin-bottom:100px}
-/* Do NOT try to lift the star further in the open state. It was tried at 100px,
-   both as margin-bottom and as a transform, and neither can work: on a standard
-   desktop window the open panel has already taken every pixel of slack, so the
-   star is sitting as high as the column allows. margin-bottom then has nothing
-   to take and pushes the MAN down off the bottom edge instead; a transform
-   leaves him alone but walks the star straight up onto the "Como jogar" button.
-   The only screens with room to give are very large desktops and phones, and
-   100px overshoots into the text on both. */
-#menu.howtoOpen .star{margin-top:auto;margin-bottom:50px}
+/* The open state lifts the star a little closer to the text. 30px, and that is
+   a ceiling, not a taste: measured to the LAST LINE of the how-to (not to
+   #howtoBody, whose box runs well past it at max-height:62vh), a 1920x1080
+   window has only 38px of room above the stars. 100px was tried and overshot -
+   it hid them there and on a 390-wide phone.
+   It is an offset and not margin-bottom because in this state the star is held
+   by margin-top:auto and the open panel has already taken every pixel of slack
+   on a normal desktop window: margin-bottom has nothing left to take, so it
+   pushes the MAN down off the bottom edge instead. An offset leaves him alone.
+   It is `top` and NOT `transform`, which was tried and broke on the way out: the
+   star carries transition:transform .5s for the menu swipe, so closing the panel
+   snapped the margins back to the closed home instantly while the transform
+   crawled out over half a second - leaving the star sitting 30px high, on the
+   "Como jogar" letters, for that whole half second. Only transform is
+   transitioned here, so `top` lands at once in both directions. It is also out
+   of flow, so placeStars still measures the real position the moment the class
+   is toggled, and the swipe keeps its animation. */
+#menu.howtoOpen .star{margin-top:auto;margin-bottom:50px;position:relative;top:-30px}
 #menu.howtoOpen #titleFoot{margin-top:0}
 .howtoWrap{position:relative}
 #howtoBody{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
@@ -1115,15 +1124,21 @@ const CORR_OVER=1+CORR_DIP*2, CORR_TOP=()=>H*CORR_DIP;
    shallow undershoot, home. The frame kick and the urna's entrance both ride it,
    so the two land and settle as a single hit rather than two events. */
 const kickEnv=q=>(1-q)*Math.cos(q*Math.PI*1.5);
-/* The urna arrives on the frame the lock does. It is drawn OUTSIDE the camera
-   kick, on its own anchor: what it was asked for is the bottom edge, centred,
-   almost touching - and a camera scaling about the screen centre would shove it
-   past that edge and drag it back. So it gets a swing of its own, deeper than
-   the camera's, because this one is an entrance and not a stop. */
-const CORR_URNA_KICK=.22;
-// ...and a shallower one on the two stabs after it: by then it is already there,
-// so those are accents, not arrivals.
-const CORR_URNA_ACCENT=.11;
+// the urna's climb into frame: fast out of the bottom edge, decelerating into
+// place, so it is at rest on the frame the first stab lands on
+const easeOut=p=>1-Math.pow(1-p,3);
+/* The urna takes the stab on the frame the lock does. It is drawn OUTSIDE the
+   camera kick, on its own anchor: what it was asked for is the bottom edge,
+   centred, almost touching - and a camera scaling about the screen centre would
+   shove it past that edge and drag it back. So it gets a swing of its own.
+   Kept small on purpose. It used to be .22, from when the machine appeared out
+   of nothing on this beat and the kick had to carry the arrival; it rides in
+   before the stabs now, so the kick only has to register as a hit on something
+   already standing there. Twice the camera's own .05 is enough for that. */
+const CORR_URNA_KICK=.10;
+// ...and half again on the two stabs after it, which are accents on a machine
+// that has been in place for a beat already.
+const CORR_URNA_ACCENT=.05;
 /* Planted on the bottom edge, not hovering over it. Two parts, both measured in
    the machine's own drawn height so they hold at every screen size:
    URNA_FILM is the empty strip the art carries under the machine (rows 1007-1023
@@ -1145,6 +1160,13 @@ const CORR_HOLD=REDUCED?.05:.55;    // s of locked frame after the last one, bef
    strength, so if the track is ever replaced these are what have to change. */
 const CORR_BEATS=[4.191,4.644,5.108];
 const CORR_BEAT_GAP=(CORR_BEATS[2]-CORR_BEATS[0])/2;   // the song's own spacing, ~131bpm
+/* The urna rides in with the camera rather than appearing on the first stab: it
+   starts wholly below the frame and climbs into place over the last two beats of
+   the climb, arriving exactly as that stab lands. Two beats rather than a count
+   of seconds, so it keeps the song's own pulse however long the climb turns out
+   to be - and the scene caps it against the climb, so a short one (reduced
+   motion, or the fallback clock) cannot ask it to start before the scene does. */
+const CORR_URNA_RISE=CORR_BEAT_GAP*2;
 /* Scene-relative times for the three punches, i.e. seconds into this phase.
    audioInit() runs on the very press that starts the intro, so the song should
    be ~1.8s in by the time we get here and the first stab still ahead - but
@@ -1180,7 +1202,7 @@ function drawCorridor(pan){
 /* URNA[0] is the idle frame - the mash animation is the fight's, not this
    scene's. Anchored bottom-centre so the swing breathes around that edge
    instead of sliding the machine along it. */
-function corridorUrna(kick,q){
+function corridorUrna(kick,q,rise){
   const im=URNA[0];
   if(!im.complete||!im.naturalWidth)return;
   // wide art (1536x1024); a phone gives it nearly the full width, a desktop a
@@ -1188,7 +1210,12 @@ function corridorUrna(kick,q){
   // sitting at the bottom of the sky rather than a wall across it
   const w=Math.min(W*(PORT?.69:.34),H*.32/URNA_AR), h=w*URNA_AR;
   const s=1+kick*kickEnv(q);
-  ctx.save();ctx.translate(W/2,H+(URNA_FILM+CORR_URNA_SINK)*h);ctx.scale(s,s);
+  /* rise 0 parks the whole rect one full height below the frame - further than
+     it needs, since the art's own top 6% is transparent, but it costs nothing
+     and leaves no chance of a sliver showing before it sets off. rise 1 is the
+     planted anchor, and the kick scales about whatever point that works out to,
+     so the machine's base stays put through the swing at either end. */
+  ctx.save();ctx.translate(W/2,lerp(H+h,H+(URNA_FILM+CORR_URNA_SINK)*h,rise));ctx.scale(s,s);
   ctx.drawImage(im,-w/2,-h,w,h);
   ctx.restore();
 }
@@ -1209,7 +1236,13 @@ function corridorScene(){
   ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
   drawCorridor(pan);
   ctx.restore();
-  if(n>=0)corridorUrna(n?CORR_URNA_ACCENT:CORR_URNA_KICK,q);
+  /* The urna's own climb, ending on the first stab. Capped against hits[0] so it
+     can never be asked to begin before t=0. Before that first stab there is no
+     kick to ride, so it is passed 0 rather than a q the swing would read as the
+     top of a kick. */
+  const rd=Math.min(CORR_URNA_RISE,hits[0]);
+  const rise=easeOut(clamp((t-(hits[0]-rd))/rd,0,1));
+  if(rise>0)corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
