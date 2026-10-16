@@ -1302,7 +1302,7 @@ const CORR_ANTA_KICK=.045;    // the bump as the slide sets down
    show the previous one in the margins, because the canvas is never cleared.
    Clamping to the positive half keeps it a bump with no gap to pay for. */
 const lockEnv=q=>Math.max(0,kickEnv(q));
-const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist.png');
+const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V2.jpg');
 ANTA.addEventListener('load',()=>{ANTA.decode&&ANTA.decode().catch(()=>{});});
 const corrAntaIn=()=>corrSong(CORR_VOX-CORR_LOGO_LEAD)+CORR_LOGO_HOLD+CORR_LOGO_OUT+CORR_ANTA_WAIT;
 const CORR_ANTA_TRIP=()=>CORR_ANTA_SLIDE*2+CORR_ANTA_HOLD;
@@ -1329,19 +1329,23 @@ function antaSlide(t){
 function drawAntagonist(){
   if(!ANTA.complete||!ANTA.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return;}
   const iw=ANTA.naturalWidth,ih=ANTA.naturalHeight;
-  /* HEIGHT-fit, not cover-fit. The picture is meant to be seen whole, so it is
-     scaled to the frame's height and never cropped top or bottom - which also
-     settles, for free, the thing cover-fit kept getting wrong here: his head
-     sits in the art's top 2% and any vertical crop took it off. */
+  /* HEIGHT-fit, not cover-fit. The frame is his full height or it is nothing:
+     the art is scaled to it and never cropped top or bottom, which is also what
+     cover-fit kept getting wrong here - his head sits in the art's top few
+     percent and any vertical crop took it off. Whatever that leaves over on the
+     sides is cropped instead, evenly - the wide version is cut for exactly
+     that, and nothing is squeezed to make the format any more. */
   const s=H/ih, w=iw*s, x=(W-w)/2;
-  /* The art is 1.32 wide to 1 tall, so on any landscape window that leaves bars
-     - 160 to 300px a side. They are filled by stretching the picture's OWN edge
-     columns, so the colour matches exactly at each seam by construction and the
-     vertical banding carries across: yellow sky at the top, brick at the foot. A
-     flat fill cannot do that, there being no single colour that is both. Each
-     bar runs a pixel into the picture and the picture is drawn last, so rounding
-     cannot leave a hairline. The canvas is never cleared, so something has to
-     cover this - on a phone the art overflows instead and x is negative. */
+  /* V2 is 1.99 wide to 1 tall, so it covers an ordinary window on its own and is
+     cropped rather than stretched to do it: 77px a side at 1280x720, a good deal
+     more on a phone, where the laterals are there to be spent. Only a window
+     WIDER than 2:1 outruns it, and there the margins are filled by stretching
+     the picture's OWN edge columns, so the colour matches exactly at each seam
+     by construction and the vertical banding carries across: yellow sky at the
+     top, brick at the foot. A flat fill cannot do that, there being no single
+     colour that is both. Each bar runs a pixel into the picture and the picture
+     is drawn last, so rounding cannot leave a hairline. The canvas is never
+     cleared, so something has to cover this. */
   if(x>0){
     ctx.drawImage(ANTA,0,0,1,ih,0,0,Math.ceil(x)+1,H);
     const r=Math.floor(x+w)-1;
@@ -1359,6 +1363,48 @@ function corridorLogo(t){
   ctx.globalAlpha=a<=CORR_LOGO_HOLD?1:1-(a-CORR_LOGO_HOLD)/CORR_LOGO_OUT;
   ctx.save();ctx.translate(W/2,H*CORR_LOGO_MID);ctx.scale(k,k);
   ctx.drawImage(LOGO2,-w/2,-h/2,w,h);
+  ctx.restore();ctx.globalAlpha=1;
+}
+/* ---- the call to action ----
+   A beat after the screen has come back from him, the instruction punches in:
+   press green, then confirm - the two keys on the machine planted at the bottom
+   of this same frame. It is drawn exactly the way the title lettering above is,
+   on the same damped swing, so the two entrances read as one gesture repeated
+   rather than two different effects.
+   The wait is one of the song's own beats rather than a tenth of a second, and
+   that also keeps the two swings apart: the slide's lock pop runs for CORR_PUNCH
+   (.42s) and the beat is .46s, so the text arrives on a frame the compositor has
+   already let go of and is never scaled by both at once. */
+const CORR_CTA_WAIT=CORR_BEAT_GAP;
+const CORR_CTA_KICK=.22;      // the same entrance the title lettering takes
+/* ...and then it goes again, exactly as the title lettering does: the same 1.15s
+   at full and the same fade out. The logo's own hold reads as 1.65 because the
+   half second it comes up early is absorbed into it - there is no lead here, so
+   1.15 is the whole of it and the two are on screen for the same beat. Set the
+   hold to Infinity and it stays for as long as the corridor does; the draw below
+   handles either. */
+const CORR_CTA_HOLD=1.15, CORR_CTA_OUT=CORR_LOGO_OUT;
+/* 3:1 art (2172x724) with no margins to speak of, so WIDTH leads here and the
+   height is only a guard rail - the reverse of the title lettering, which is
+   nearly square and led by its height. The band is squeezed from both sides on a
+   720-tall window: the charged ball reaches down to about y.36 and the machine's
+   own art begins around y.70, which is what sets both the width and the .54
+   centre, with roughly 20px of slack at each end. Widen it and it has to move. */
+const CORR_CTA_W=()=>PORT?.86:.52, CORR_CTA_HMAX=.34, CORR_CTA_MID=.54;
+const CTA=new Image();CTA.src=encodeURI('assets/new/Aperta Verde e Confirma Logo.png');
+CTA.addEventListener('load',()=>{CTA.decode&&CTA.decode().catch(()=>{});});
+// the slide sets down at the end of its round trip; the text follows one beat later
+const corrCtaIn=()=>corrAntaIn()+CORR_ANTA_TRIP()+CORR_CTA_WAIT;
+function corridorCta(t){
+  if(!CTA.complete||!CTA.naturalWidth)return;
+  const a=t-corrCtaIn();
+  if(a<0||a>CORR_CTA_HOLD+CORR_CTA_OUT)return;
+  const ar=CTA.naturalWidth/CTA.naturalHeight;
+  const w=Math.min(W*CORR_CTA_W(),H*CORR_CTA_HMAX*ar), h=w/ar;
+  const k=1+CORR_CTA_KICK*kickEnv(clamp(a/CORR_PUNCH,0,1));
+  ctx.globalAlpha=a<=CORR_CTA_HOLD?1:1-(a-CORR_CTA_HOLD)/CORR_CTA_OUT;
+  ctx.save();ctx.translate(W/2,H*CORR_CTA_MID);ctx.scale(k,k);
+  ctx.drawImage(CTA,-w/2,-h/2,w,h);
   ctx.restore();ctx.globalAlpha=1;
 }
 /* The corridor is becoming the playable screen, so for now it HOLDS at the end
@@ -1562,6 +1608,7 @@ function corridorWorld(t){
     corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
   }
   corridorLogo(t);   // over everything, including him
+  corridorCta(t);    // ...and this one outlives it, over everything too
 }
 /* The compositor. Nothing happens here at all until the trip starts, so the
    scene draws exactly as it did before this existed. During the trip the two
