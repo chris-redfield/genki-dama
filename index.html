@@ -1308,7 +1308,7 @@ const CORR_ANTA_KICK=.045;    // the bump as the slide sets down
    show the previous one in the margins, because the canvas is never cleared.
    Clamping to the positive half keeps it a bump with no gap to pay for. */
 const lockEnv=q=>Math.max(0,kickEnv(q));
-const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V2.jpg');
+const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V3.jpg');
 ANTA.addEventListener('load',()=>{ANTA.decode&&ANTA.decode().catch(()=>{});});
 const corrAntaIn=()=>corrSong(CORR_VOX-CORR_LOGO_LEAD)+CORR_LOGO_HOLD+CORR_LOGO_OUT+CORR_ANTA_WAIT;
 const CORR_ANTA_TRIP=()=>CORR_ANTA_SLIDE*2+CORR_ANTA_HOLD;
