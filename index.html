@@ -812,7 +812,10 @@ function update(dt){
   switch(G.phase){
     case 'corridor':
       while(G.corrBeat<G.corrHits.length&&G.pt>=G.corrHits[G.corrBeat])corridorHit(G.corrBeat++);
-      G.corrE=Math.max(0,(G.corrE||0)-CORR_DECAY*dt);
+      // it only bleeds while the screen is his to press on: up at the planet
+      // there is nothing to press, so there is nothing to lose
+      if(!corrGlobe())G.corrE=Math.max(0,(G.corrE||0)-CORR_DECAY*dt);
+      corrFullTick(dt);
       if(CORR_TO_FIGHT&&G.pt>=corrEnd())newRun();
       break;
     case 'fullShot': if(G.pt>=3.6)toSilence(); break;
@@ -1105,8 +1108,11 @@ function bar(x,y,w,h,v,col,name){
 }
 
 /* ---------- scenes ---------- */
-function opening(){
-  const p=clamp(G.pt/3.6,0,1);
+/* `pt` lets a caller outside the fullShot phase run this shot on its own clock -
+   the corridor borrows it. Called with nothing it reads the phase time exactly
+   as it always did, so phase 1 cannot tell the parameter is there. */
+function opening(pt){
+  const p=clamp((pt??G.pt)/3.6,0,1);
   spaceBG();drawStars(1,-p*20,0);
   const R=Math.min(W*(PORT?.46:.4),H*.4),cx=W/2,cy=H*.54;
   const T=planetTarget(cx,cy,R,false,-1.25);
@@ -1395,17 +1401,92 @@ const CTA=new Image();CTA.src=encodeURI('assets/new/Aperta Verde e Confirma Logo
 CTA.addEventListener('load',()=>{CTA.decode&&CTA.decode().catch(()=>{});});
 // the slide sets down at the end of its round trip; the text follows one beat later
 const corrCtaIn=()=>corrAntaIn()+CORR_ANTA_TRIP()+CORR_CTA_WAIT;
-function corridorCta(t){
-  if(!CTA.complete||!CTA.naturalWidth)return;
-  const a=t-corrCtaIn();
-  if(a<0||a>CORR_CTA_HOLD+CORR_CTA_OUT)return;
-  const ar=CTA.naturalWidth/CTA.naturalHeight;
+/* Both instruction bands are the same gesture with different words - punch in
+   on the damped swing, hold, fade - and the art is cut to the same 3:1, so they
+   are drawn by one function and share every number above. `a` is seconds since
+   the band was asked for; before 0 and after the fade there is nothing. */
+function corridorBand(img,a,hold){
+  if(!img.complete||!img.naturalWidth)return;
+  if(a<0||a>hold+CORR_CTA_OUT)return;
+  const ar=img.naturalWidth/img.naturalHeight;
   const w=Math.min(W*CORR_CTA_W(),H*CORR_CTA_HMAX*ar), h=w/ar;
   const k=1+CORR_CTA_KICK*kickEnv(clamp(a/CORR_PUNCH,0,1));
-  ctx.globalAlpha=a<=CORR_CTA_HOLD?1:1-(a-CORR_CTA_HOLD)/CORR_CTA_OUT;
+  ctx.globalAlpha=a<=hold?1:1-(a-hold)/CORR_CTA_OUT;
   ctx.save();ctx.translate(W/2,H*CORR_CTA_MID);ctx.scale(k,k);
-  ctx.drawImage(CTA,-w/2,-h/2,w,h);
+  ctx.drawImage(img,-w/2,-h/2,w,h);
   ctx.restore();ctx.globalAlpha=1;
+}
+function corridorCta(t){corridorBand(CTA,t-corrCtaIn(),CORR_CTA_HOLD);}
+/* ---- and the one that meets him on the way back ----
+   The screen drops out of the full shot and this lands on it: don't stop
+   pressing. G.corrBack is set the frame the trip's clock runs out, and that
+   clock already spends its last CORR_PUNCH on the landing pop - so by the time
+   clock does not run out until the corridor has faded all the way back in, so
+   the words land on a screen that is already there. Hence a wait of zero; give
+   it one to put a beat between the two. */
+const CORR_NP_WAIT=0, CORR_NP_HOLD=1.15;
+const NOPARE=new Image();NOPARE.src=encodeURI('assets/new/Não Pare de Apertar Confirma!.png');
+NOPARE.addEventListener('load',()=>{NOPARE.decode&&NOPARE.decode().catch(()=>{});});
+function corridorBack(t){corridorBand(NOPARE,t-(G.corrBack??-9)-CORR_NP_WAIT,CORR_NP_HOLD);}
+/* ---- up to the full shot ----
+   Hold the ball at the top and the screen rises off the corridor to the shot
+   the fight opens on: the whole planet from space with every thread of energy
+   coming off it and gathering into one point. That screen is not rebuilt here
+   and not dressed up - opening() draws it exactly as phase 1 does, and all of
+   this is a clock to run it on and a way back. It is the second overlay on this
+   phase, built like the antagonist trip: a strip the camera travels, nothing
+   saved and nothing restored, so the corridor is where we left it when the
+   screen drops back. This one travels vertically. */
+const CORR_FULL_AT=.99;      // what counts as holding it at the top...
+/* ...and for how long. The charge bleeds at CORR_DECAY, so staying above .99
+   means landing a press about every half second: the ask is that you keep
+   mashing at the top, not that you touched it once. */
+const CORR_FULL_HOLD=2;
+const CORR_GLOBE_FADE=REDUCED?.08:.35;  // s of black, in and out, four times over
+/* How long the shot is up, fades included. opening() runs its gather over 3.6s
+   and then holds, so this is that plus one fade: the energy finishes coming in
+   just as the screen starts going out again. */
+const CORR_GLOBE_HOLD=3.6+CORR_GLOBE_FADE;
+const CORR_GLOBE_TRIP=()=>CORR_GLOBE_FADE*2+CORR_GLOBE_HOLD;
+const corrGlobe=()=>G.corrGlobe>=0;
+/* The trip is a fade out and a fade in, twice - no camera move at all, which is
+   why nothing here is a position. `shot` is the full shot's own clock, or -1
+   when the corridor is the thing behind the black; `veil` is how much black is
+   over it. The two screens are never on the canvas together, so neither has to
+   know the other exists - the same contract the slides keep, bought with a
+   fill instead of a transform. */
+function globeFade(){
+  const a=G.corrGlobe, F=CORR_GLOBE_FADE, D=CORR_GLOBE_HOLD;
+  if(!(a>=0))return null;
+  if(a<F)return {shot:-1,veil:a/F};                 // the corridor going out
+  // up there: in from black, hold, and back out to it on the way home
+  if(a<F+D)return {shot:a-F,veil:clamp(Math.max(1-(a-F)/F,(a-F-D+F)/F),0,1)};
+  if(a<F+D+F)return {shot:-1,veil:1-(a-F-D)/F};     // the corridor coming back
+  return null;
+}
+/* The screen is the player's once the scripted run has finished, and the last
+   beat of that is the lettering leaving. The charge fills and the machine
+   answers before then, but the planet will not cut into the intro - which is
+   also what makes the two trips impossible to overlap, since the lateral one is
+   long home by here. If the lettering is ever set to stay (CORR_CTA_HOLD =
+   Infinity) there would be nothing to wait for, so the screen is handed over as
+   soon as it has landed instead. */
+const corrPlayable=t=>t>=corrCtaIn()+(isFinite(CORR_CTA_HOLD)?CORR_CTA_HOLD+CORR_CTA_OUT:CORR_PUNCH);
+/* The trip's whole clock, and the only thing that starts it. It is deliberately
+   re-armable: come back down, hold the top for another two seconds and it goes
+   up again. There is no win condition for it to end on yet. */
+function corrFullTick(dt){
+  if(corrGlobe()){
+    G.corrGlobe+=dt;
+    // ...and the moment it is home, the band below is asked for
+    if(G.corrGlobe>=CORR_GLOBE_TRIP()){G.corrGlobe=-1;G.corrFull=0;G.corrBack=G.pt;}
+    return;
+  }
+  G.corrFull=((G.corrE||0)>=CORR_FULL_AT&&corrPlayable(G.pt))?(G.corrFull||0)+dt:0;
+  if(G.corrFull>=CORR_FULL_HOLD){
+    G.corrFull=0;G.corrGlobe=0;
+    tone('sine',180,720,1.1,.07);noise(.5,.1,600);
+  }
 }
 /* The corridor is becoming the playable screen, so for now it HOLDS at the end
    of its own beats instead of cutting to the fight: the frame stays locked, the
@@ -1422,13 +1503,13 @@ function corridorHit(i){
   tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
   if(!i)tone('square',880,440,.09,.045);
 }
-function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;setPhase('corridor');tone('sine',560,300,1.9,.05);}
 /* The corridor's own mash. It drives the same G.lastMash the fight's does, which
    is what makes the machine animate identically here - urnaFrame() reads that
    one clock and nothing else. */
 function corrMash(){
   // nothing to press while we are looking at him
-  if(G.phase!=='corridor'||corrAnta(G.pt))return;
+  if(G.phase!=='corridor'||corrAnta(G.pt)||corrGlobe())return;
   G.corrE=Math.min(1,(G.corrE||0)+CORR_MASH_GAIN);
   G.lastMash=G.t;
 }
@@ -1608,13 +1689,25 @@ function corridorWorld(t){
     corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
   }
   corridorLogo(t);   // over everything, including him
-  corridorCta(t);    // ...and this one outlives it, over everything too
+  corridorCta(t);    // ...and the bands over everything too
+  corridorBack(t);
 }
 /* The compositor. Nothing happens here at all until the trip starts, so the
    scene draws exactly as it did before this existed. During the trip the two
    screens ride the strip together and the lock pop scales the pair of them. */
 function corridorScene(){
-  const t=G.pt, {p,lock}=antaSlide(t);
+  const t=G.pt, {p,lock}=antaSlide(t), fade=globeFade();
+  /* The trip to the full shot owns the screen while it runs. It cannot start
+     before the scripted run is over, so the lateral slide is always home by the
+     time this branch can be taken and the two never share a frame. Whichever
+     screen is up is drawn whole, in its own right, with the black laid over it
+     last - so the veil covers every layer either of them paints, the uncleared
+     canvas included. */
+  if(fade){
+    if(fade.shot>=0)opening(fade.shot);else corridorWorld(t);
+    if(fade.veil>0){ctx.fillStyle='rgba(0,0,0,'+fade.veil.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
+    return;
+  }
   if(p<=0&&lock<0){corridorWorld(t);return;}
   const q=lock>=0?clamp(lock/CORR_PUNCH,0,1):1;
   const k=1+CORR_ANTA_KICK*lockEnv(q);
