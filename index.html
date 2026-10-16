@@ -810,7 +810,7 @@ function update(dt){
   switch(G.phase){
     case 'corridor':
       while(G.corrBeat<G.corrHits.length&&G.pt>=G.corrHits[G.corrBeat])corridorHit(G.corrBeat++);
-      if(G.pt>=corrEnd())newRun();
+      if(CORR_TO_FIGHT&&G.pt>=corrEnd())newRun();
       break;
     case 'fullShot': if(G.pt>=3.6)toSilence(); break;
     case 'gather': updGather(dt); break;
@@ -1209,6 +1209,51 @@ function corridorHits(){
   return [0,1,2].map(i=>CORR_RISE+i*CORR_BEAT_GAP);
 }
 const corrEnd=()=>G.corrHits[G.corrHits.length-1]+CORR_PUNCH+CORR_HOLD;
+/* Song seconds -> scene seconds. hits[0] IS CORR_BEATS[0], so anything written
+   down as a time in the track converts through that one anchor and stays on the
+   music however long the climb turned out to be. */
+const corrSong=s=>G.corrHits[0]+(s-CORR_BEATS[0]);
+/* ---- the logo flash ----
+   After the three stabs the woman sings the title line. She starts at 5.918s:
+   that is where the pitch track leaves the ~110Hz bass line under the stabs and
+   jumps to a confidently voiced 262-450Hz, and it holds there to 6.99 with a
+   tail to 7.40. The logo comes up on her first syllable and is gone before she
+   finishes the phrase. */
+const CORR_VOX=5.918;
+/* The lettering comes up this long BEFORE she sings, so it is already landing as
+   the line starts instead of arriving on top of it. The hold absorbs the lead
+   rather than the exit moving with it: she still finishes the phrase underneath
+   it, which a straight 0.5s shift would have cut short at 6.75. */
+const CORR_LOGO_LEAD=.5;
+const CORR_LOGO_HOLD=1.15+CORR_LOGO_LEAD;   // s on screen at full before it goes
+const CORR_LOGO_OUT=.18;      // ...and how fast it goes
+const CORR_LOGO_KICK=.22;     // its entrance, on the same swing everything else uses
+/* Sized to fit ABOVE the urna with its centre near the middle of the screen. The
+   art carries transparent margins (content is y 84..1038 of 1086), so the drawn
+   box is a little taller than what you see, and the clearance below is measured
+   against the content, not the box. */
+const CORR_LOGO_H=.50, CORR_LOGO_WMAX=.88, CORR_LOGO_MID=.42;
+const LOGO2=new Image();LOGO2.src=encodeURI('assets/new/Vô votar no 13! Brush Logo.png');
+LOGO2.addEventListener('load',()=>{LOGO2.decode&&LOGO2.decode().catch(()=>{});});
+function corridorLogo(t){
+  if(!LOGO2.complete||!LOGO2.naturalWidth)return;
+  const a=t-corrSong(CORR_VOX-CORR_LOGO_LEAD);
+  if(a<0||a>CORR_LOGO_HOLD+CORR_LOGO_OUT)return;
+  const ar=LOGO2.naturalWidth/LOGO2.naturalHeight;
+  const w=Math.min(W*CORR_LOGO_WMAX,H*CORR_LOGO_H*ar), h=w/ar;
+  const k=1+CORR_LOGO_KICK*kickEnv(clamp(a/CORR_PUNCH,0,1));
+  ctx.globalAlpha=a<=CORR_LOGO_HOLD?1:1-(a-CORR_LOGO_HOLD)/CORR_LOGO_OUT;
+  ctx.save();ctx.translate(W/2,H*CORR_LOGO_MID);ctx.scale(k,k);
+  ctx.drawImage(LOGO2,-w/2,-h/2,w,h);
+  ctx.restore();ctx.globalAlpha=1;
+}
+/* The corridor is becoming the playable screen, so for now it HOLDS at the end
+   of its own beats instead of cutting to the fight: the frame stays locked, the
+   urna stays planted and he goes on hovering, which is the state the new
+   gameplay gets built on top of. Flip this back to true to restore the cut to
+   phase 1 - nothing else was removed, and corrEnd() still marks where the cut
+   used to land. */
+const CORR_TO_FIGHT=false;
 /* The song plays the stab; this is the weight under it. The first hit is the
    loudest because it is also the urna's entrance, and it alone gets the bright
    blip - the machine's own voice, once, as it lands. */
@@ -1225,6 +1270,69 @@ function drawCorridor(pan){
   const iw=CORR.naturalWidth,ih=CORR.naturalHeight;
   const s=Math.max(W/iw,H*(1+CORR_CLIMB())/ih)*CORR_OVER,w=iw*s,h=ih*s;
   ctx.drawImage(CORR,(W-w)/2,lerp(H-h,-CORR_TOP(),pan),w,h);
+}
+/* The man who comes up the corridor behind the urna. Same green-screen
+   three-scale sheet the title poses use, but this one takes the BIGGEST figure
+   (409x775 of the three): he is meant to fill the frame, not stand in a strip.
+   sliceStrip needs getImageData, so like every other sheet here he is simply
+   absent when the page is opened over file:// instead of being served - the
+   scene plays without him rather than breaking. */
+let CORR_MAN=null;
+(function(){const i=new Image();
+  i.onload=()=>{try{CORR_MAN=sliceStrip(i)[0];}catch(e){}};
+  i.src=encodeURI('assets/new/Low-angle levitating sprite trio.png');})();
+/* He is taller than the frame on purpose - he towers, and his feet run off the
+   bottom where the urna is covering them anyway. */
+const CORR_MAN_H=1.12;    // his height, as a fraction of the screen
+/* The width cap rides above his height fraction rather than being a number of
+   its own, so it cannot go stale when he is resized: it stays clear of him on
+   any ordinary screen and only bites on a very narrow, very tall one. */
+const CORR_MAN_W=CORR_MAN_H*1.26;
+/* Where his centre comes to rest. He sits a little below the middle of the
+   screen: .5 was the middle, and the extra is a drop of 100px measured on a
+   720-tall window, kept as a fraction so the framing holds at every size rather
+   than reading as a bigger drop the shorter the screen gets (117px on a tall
+   phone, 150px at 1080). Make it `H*.5 + 100` in the draw below if it should be
+   literally 100px everywhere instead. */
+const CORR_MAN_MID=.5+100/720;
+/* ...and off centre, to the left. Like the drop above this is kept as a fraction
+   rather than a literal offset: 150px measured on a 1280-wide window. A fixed
+   150px would be 12% of a desktop but 38% of a phone, which would throw him
+   most of the way off the side of a screen he is already wider than. */
+const CORR_MAN_X=-150/1280;
+/* He locks on the first stab and takes it like everything else does, through the
+   same damped swing - small, because he is the biggest thing on screen and a
+   kick that reads as slight on the urna is a lot of pixels on him. Only the
+   first: the two stabs after it are the urna's and the camera's, and he is
+   hovering by then. */
+const CORR_MAN_STAB=.045;
+/* ...and once he is locked, he hovers. Amplitude as a fraction of the screen so
+   it reads the same at any size, and it eases in FROM ZERO after the lock, so
+   the bob cannot step him the instant it starts however the sine happens to be
+   phased when he gets there.
+   The rate is set by how long he is actually on screen, which is the lock to the
+   end of the scene - about 1.9s. A slow, pretty 5s float spends that drifting
+   one way and never reads as a hover at all; at ~2.1s he gets a full rise and
+   fall inside the window, and the ease-in is kept short so most of it runs at
+   full amplitude. */
+const CORR_MAN_HOVER=.018, CORR_MAN_HOVER_W=3.0, CORR_MAN_HOVER_IN=.35;
+/* He rides the same window the urna does and stops higher, so over one window he
+   travels further - he reads as overtaking it, which is what being behind it and
+   still climbing should look like. */
+function corridorMan(rise,kick,q,bob){
+  if(!CORR_MAN)return;
+  /* He is tall and narrow, so height leads and the cap is the guard rail: left
+     at a fixed fraction of the width it would quietly refuse a resize on a phone,
+     where height is the plentiful axis, and he would come out short of what was
+     asked for without anything looking wrong. */
+  const h=Math.min(H*CORR_MAN_H,W*CORR_MAN_W*CORR_MAN.height/CORR_MAN.width),
+        w=h*CORR_MAN.width/CORR_MAN.height;
+  // rise 0 parks him wholly under the frame, rise 1 is his resting centre; the
+  // stab scales about that same centre, so the lock does not shift him
+  const s=1+kick*kickEnv(q);
+  ctx.save();ctx.translate(W/2+W*CORR_MAN_X,lerp(H+h/2,H*CORR_MAN_MID,rise)+bob);ctx.scale(s,s);
+  ctx.drawImage(CORR_MAN,-w/2,-h/2,w,h);
+  ctx.restore();
 }
 /* URNA[0] is the idle frame - the mash animation is the fight's, not this
    scene's. Anchored bottom-centre so the swing breathes around that edge
@@ -1269,7 +1377,13 @@ function corridorScene(){
      top of a kick. */
   const rd=Math.min(CORR_URNA_RISE,hits[0]);
   const rise=easeOut(clamp((t-(hits[0]-rd))/rd,0,1));
-  if(rise>0)corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
+  // him first, then the machine on top of him - he comes up BEHIND it
+  if(rise>0){
+    const hov=clamp((t-hits[0])/CORR_MAN_HOVER_IN,0,1);
+    corridorMan(rise,n===0?CORR_MAN_STAB:0,q,Math.sin(G.t*CORR_MAN_HOVER_W)*H*CORR_MAN_HOVER*hov);
+    corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
+  }
+  corridorLogo(t);   // over everything, including him
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
