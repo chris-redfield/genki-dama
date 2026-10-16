@@ -672,6 +672,7 @@ addEventListener('keydown',e=>{
     // fullShot deliberately has no branch: it is unskippable, so a player still
     // mashing as the orb fills cannot blow straight through the payoff
     if(G.phase==='gather')mash();
+    else if(G.phase==='corridor')corrMash();
     else if(G.phase==='aim')doThrow();
     else if(G.phase==='result'&&k==='Enter'){audioInit();newRun();}
   }
@@ -689,6 +690,7 @@ cv.addEventListener('pointerdown',e=>{
   if(G.phase==='menu'){beginStart();return;}
   if(G.phase==='fullShot')return;   // swallow taps during the shot
   if(G.phase==='gather'){e.preventDefault();mash();return;}   // tap anywhere to mash
+  if(G.phase==='corridor'){e.preventDefault();corrMash();return;}
   if(G.phase==='aim'){
     const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
     for(const c of G.cells){const pts=c.poly.map(([x,z])=>proj(x,z));if(inPoly(px,py,pts)){G.reticle=c;tone('triangle',520,520,.04,.05);break;}}
@@ -810,6 +812,7 @@ function update(dt){
   switch(G.phase){
     case 'corridor':
       while(G.corrBeat<G.corrHits.length&&G.pt>=G.corrHits[G.corrBeat])corridorHit(G.corrBeat++);
+      G.corrE=Math.max(0,(G.corrE||0)-CORR_DECAY*dt);
       if(CORR_TO_FIGHT&&G.pt>=corrEnd())newRun();
       break;
     case 'fullShot': if(G.pt>=3.6)toSilence(); break;
@@ -967,15 +970,32 @@ function drawPlanet(cx,cy,R){
   ctx.fillStyle='rgba(8,20,60,.45)';ctx.beginPath();ctx.rect(cx-R,cy-R,R*2,R*2);ctx.arc(cx-R*.16,cy-R*.18,R*1.06,0,TAU,true);ctx.fill();
   ctx.restore();circ(cx,cy,R);inkStroke(Math.max(2.5,R*.012));
 }
-function drawSphere(cx,cy,r,t,alpha=1){
+/* The orb's colours, lifted out so the same ball can be charged in two places.
+   ORB_COOL is exactly what drawSphere had hard-wired, so phase 1 is untouched;
+   the corridor charges the hot one. */
+const ORB_COOL={g1:'rgba(120,205,255,.22)',g2:'rgba(150,220,255,.4)',core:ORB_B,lit:ORB_L,
+                hi:'#fff',hiR:.54,ring:'rgba(70,165,235,.55)'};
+/* The hot one is not just the cool one recoloured.
+   - NO outer wash at all: both g1 (1.55r) and g2 (1.24r) are null. A warm
+     translucent layer over this blue sky does not read as light coming off the
+     ball - it desaturates to a muddy purple-grey and reads as a dirty ring
+     around it. The cool orb gets away with it because it is washing blue over
+     sand. The ball ends at its own edge here, which is also what lets it read as
+     solid against a sky this busy. The null checks in drawSphere are for this.
+   - its highlight is less than half the cool one's, because at the radius this
+     ball spends most of its life a .54 white centre swallowed the red and it
+     came out as a white dot with a red rim. */
+const ORB_HOT ={g1:null, g2:null, core:'#e5240b',lit:KI,
+                hi:'#ffd9a0',hiR:.30,ring:'rgba(170,30,5,.6)'};
+function drawSphere(cx,cy,r,t,alpha=1,P=ORB_COOL){
   if(r<1)return;
   ctx.save();ctx.globalAlpha=alpha;
-  ctx.fillStyle='rgba(120,205,255,.22)';circ(cx,cy,r*1.55);ctx.fill();
-  ctx.fillStyle='rgba(150,220,255,.4)';circ(cx,cy,r*1.24);ctx.fill();
-  ctx.fillStyle=ORB_B;circ(cx,cy,r);ctx.fill();
-  ctx.fillStyle=ORB_L;circ(cx-r*.06,cy-r*.07,r*.8);ctx.fill();
-  ctx.fillStyle='#fff';circ(cx-r*.13,cy-r*.15,r*.54);ctx.fill();
-  ctx.strokeStyle='rgba(70,165,235,.55)';ctx.lineWidth=Math.max(1.2,r*.032);ctx.lineCap='round';
+  if(P.g1){ctx.fillStyle=P.g1;circ(cx,cy,r*1.55);ctx.fill();}
+  if(P.g2){ctx.fillStyle=P.g2;circ(cx,cy,r*1.24);ctx.fill();}
+  ctx.fillStyle=P.core;circ(cx,cy,r);ctx.fill();
+  ctx.fillStyle=P.lit;circ(cx-r*.06,cy-r*.07,r*.8);ctx.fill();
+  ctx.fillStyle=P.hi;circ(cx-r*.13,cy-r*.15,r*P.hiR);ctx.fill();
+  ctx.strokeStyle=P.ring;ctx.lineWidth=Math.max(1.2,r*.032);ctx.lineCap='round';
   for(let i=0;i<4;i++){const rr=r*(.62+.1*i),s=t*(.8+i*.3)*(i%2?-1:1);ctx.beginPath();ctx.arc(cx,cy,rr,s,s+1.1);ctx.stroke();}
   if(r>6)for(let i=0;i<6;i++){const a=t*.7+i*TAU/6,s=r*.09*(.6+.4*Math.sin(t*6+i*2));sparkle(cx+Math.cos(a)*r*1.14,cy+Math.sin(a)*r*1.14,Math.max(2,s));}
   ctx.restore();
@@ -1235,6 +1255,68 @@ const CORR_LOGO_KICK=.22;     // its entrance, on the same swing everything else
 const CORR_LOGO_H=.50, CORR_LOGO_WMAX=.88, CORR_LOGO_MID=.42;
 const LOGO2=new Image();LOGO2.src=encodeURI('assets/new/Vô votar no 13! Brush Logo.png');
 LOGO2.addEventListener('load',()=>{LOGO2.decode&&LOGO2.decode().catch(()=>{});});
+/* ---- the antagonist cut ----
+   A beat after the logo has gone, the screen cuts to him and then straight back.
+   It is an overlay inside the corridor phase, not a phase of its own: the man's
+   hover, the planted urna and the charge are all still exactly where they were
+   when we come back, with nothing to save or restore. */
+const CORR_ANTA_WAIT=0;       // the slide leaves the moment the logo has gone
+const CORR_ANTA_SLIDE=.34;    // s of travel, each way
+const CORR_ANTA_HOLD=2.0;     // s parked on him
+const CORR_ANTA_KICK=.045;    // the bump as the slide sets down
+/* The lock-in pop, and the one place the scene does NOT use the damped swing.
+   kickEnv undershoots to -1/3 on its way home, and this kick scales the WHOLE
+   composite - at anything under 1 the frame would pull in off its own edges and
+   show the previous one in the margins, because the canvas is never cleared.
+   Clamping to the positive half keeps it a bump with no gap to pay for. */
+const lockEnv=q=>Math.max(0,kickEnv(q));
+const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist.png');
+ANTA.addEventListener('load',()=>{ANTA.decode&&ANTA.decode().catch(()=>{});});
+const corrAntaIn=()=>corrSong(CORR_VOX-CORR_LOGO_LEAD)+CORR_LOGO_HOLD+CORR_LOGO_OUT+CORR_ANTA_WAIT;
+const CORR_ANTA_TRIP=()=>CORR_ANTA_SLIDE*2+CORR_ANTA_HOLD;
+// true for the whole round trip, not just the part parked on him - there is
+// nothing to press while the screen is moving either
+const corrAnta=t=>{const a=t-corrAntaIn();return a>=0&&a<CORR_ANTA_TRIP();};
+/* How far along the strip we are: 0 the corridor, 1 the antagonist. The two are
+   drawn as if pasted side by side - the corridor at -p*W, him at (1-p)*W - so
+   between them they always cover the frame exactly, whatever p is. `lock` is
+   seconds since the slide last set down, at either end, or -1 while moving. */
+function antaSlide(t){
+  const a=t-corrAntaIn(), S=CORR_ANTA_SLIDE, D=CORR_ANTA_HOLD;
+  if(a<0)return {p:0,lock:-1};
+  if(a<S)return {p:easeOut(a/S),lock:-1};
+  if(a<S+D)return {p:1,lock:a-S};
+  if(a<S+D+S)return {p:1-easeOut((a-S-D)/S),lock:-1};
+  /* Home, and the lock is reported only while its pop is still running. Left to
+     count up forever it would keep the scene on the compositor's path for the
+     rest of the run - drawing the same thing through a redundant transform, and
+     quietly diverging from the path it took before the trip. */
+  const l=a-(S+D+S);
+  return {p:0,lock:l<CORR_PUNCH?l:-1};
+}
+function drawAntagonist(){
+  if(!ANTA.complete||!ANTA.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return;}
+  const iw=ANTA.naturalWidth,ih=ANTA.naturalHeight;
+  /* HEIGHT-fit, not cover-fit. The picture is meant to be seen whole, so it is
+     scaled to the frame's height and never cropped top or bottom - which also
+     settles, for free, the thing cover-fit kept getting wrong here: his head
+     sits in the art's top 2% and any vertical crop took it off. */
+  const s=H/ih, w=iw*s, x=(W-w)/2;
+  /* The art is 1.32 wide to 1 tall, so on any landscape window that leaves bars
+     - 160 to 300px a side. They are filled by stretching the picture's OWN edge
+     columns, so the colour matches exactly at each seam by construction and the
+     vertical banding carries across: yellow sky at the top, brick at the foot. A
+     flat fill cannot do that, there being no single colour that is both. Each
+     bar runs a pixel into the picture and the picture is drawn last, so rounding
+     cannot leave a hairline. The canvas is never cleared, so something has to
+     cover this - on a phone the art overflows instead and x is negative. */
+  if(x>0){
+    ctx.drawImage(ANTA,0,0,1,ih,0,0,Math.ceil(x)+1,H);
+    const r=Math.floor(x+w)-1;
+    ctx.drawImage(ANTA,iw-1,0,1,ih,r,0,W-r,H);
+  }
+  ctx.drawImage(ANTA,x,0,w,H);
+}
 function corridorLogo(t){
   if(!LOGO2.complete||!LOGO2.naturalWidth)return;
   const a=t-corrSong(CORR_VOX-CORR_LOGO_LEAD);
@@ -1262,7 +1344,16 @@ function corridorHit(i){
   tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
   if(!i)tone('square',880,440,.09,.045);
 }
-function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+/* The corridor's own mash. It drives the same G.lastMash the fight's does, which
+   is what makes the machine animate identically here - urnaFrame() reads that
+   one clock and nothing else. */
+function corrMash(){
+  // nothing to press while we are looking at him
+  if(G.phase!=='corridor'||corrAnta(G.pt))return;
+  G.corrE=Math.min(1,(G.corrE||0)+CORR_MASH_GAIN);
+  G.lastMash=G.t;
+}
 /* pan 0 = the near clouds at the bottom of the image, pan 1 = its top. Same
    direction the menu pan travels, so the cut keeps moving the way it was going. */
 function drawCorridor(pan){
@@ -1300,6 +1391,36 @@ const CORR_MAN_MID=.5+100/720;
    150px would be 12% of a desktop but 38% of a phone, which would throw him
    most of the way off the side of a screen he is already wider than. */
 const CORR_MAN_X=-150/1280;
+/* The ball he charges. Both offsets are fractions of HIS drawn box, not the
+   screen, so it stays on his hands at any size: his hat brim tops out 13% down
+   his height and his two raised hands frame the empty space just above it, which
+   is where this sits - clear of the brim rather than resting on it, so it reads
+   as gathering at a distance above him. There is not much more room than this:
+   his own top is only a little way inside the frame, so pushing the ball higher
+   than ~.04 starts taking the glow off the top edge at full charge, and the max
+   radius would have to come down with it. His hat centre is a touch right of his
+   box centre (51.8% of his width), hence the nudge. */
+const CORR_BALL_Y=.045, CORR_BALL_X=.018;
+/* It also climbs as it fills - about 100px of lift by the time it is full, at
+   the size he is drawn on a 720-tall window. Kept in HIS height like every other
+   number here, so it scales with him instead of drifting off his hands on a
+   taller screen. Linear in the charge: no lift when empty, all of it at full. */
+const CORR_BALL_LIFT=.13;
+/* Radius, empty -> full, also as a fraction of his height. The full size is
+   deliberately larger than the room above him: at .214 of his height the top of
+   the ball, and more of its glow, run off the top of the frame. That is the
+   look - a genki dama outgrowing the shot - not an oversight. If it should be
+   contained again, CORR_BALL_Y has to come down with it, and at that point it
+   starts eating his head instead. */
+const CORR_BALL_R0=.012, CORR_BALL_R1=.322;
+// per press. ~29 presses to fill; the fight's own mash is 1.75 of 100
+const CORR_MASH_GAIN=.035;
+/* ...and it bleeds back down when you stop, the way the fight's does. Not the
+   fight's number, its RATIO: there you gain 1.75 a press and lose .9 a second,
+   so a second of idling costs you about half a press. This is that same half
+   press per second at this screen's own gain, which is why it is written as a
+   multiple of it rather than as a figure of its own. */
+const CORR_DECAY=CORR_MASH_GAIN*.514;
 /* He locks on the first stab and takes it like everything else does, through the
    same damped swing - small, because he is the biggest thing on screen and a
    kick that reads as slight on the urna is a lot of pixels on him. Only the
@@ -1331,6 +1452,13 @@ function corridorMan(rise,kick,q,bob){
   // stab scales about that same centre, so the lock does not shift him
   const s=1+kick*kickEnv(q);
   ctx.save();ctx.translate(W/2+W*CORR_MAN_X,lerp(H+h/2,H*CORR_MAN_MID,rise)+bob);ctx.scale(s,s);
+  /* The ball goes down BEFORE him, so he occludes it - it is gathering behind
+     his head, not held out in front of his face. Still inside his transform, so
+     it rides the rise, the hover and the lock stab with him and needs no second
+     copy of any of that. Nothing is drawn at zero, so it begins at the first
+     press rather than sitting there as a dot waiting to be fed. */
+  const e=G.corrE||0;
+  if(e>0)drawSphere(w*CORR_BALL_X,-h/2+h*(CORR_BALL_Y-CORR_BALL_LIFT*e),h*(CORR_BALL_R0+CORR_BALL_R1*e),G.t,1,ORB_HOT);
   ctx.drawImage(CORR_MAN,-w/2,-h/2,w,h);
   ctx.restore();
 }
@@ -1338,7 +1466,8 @@ function corridorMan(rise,kick,q,bob){
    scene's. Anchored bottom-centre so the swing breathes around that edge
    instead of sliding the machine along it. */
 function corridorUrna(kick,q,rise){
-  const im=URNA[0];
+  // the frame the fight would show for this same press - see urnaFrame()
+  const f=urnaFrame(), im=URNA[f];
   if(!im.complete||!im.naturalWidth)return;
   // wide art (1536x1024); a phone gives it nearly the full width, a desktop a
   // share of it, and both are capped against the height so it stays an object
@@ -1351,11 +1480,15 @@ function corridorUrna(kick,q,rise){
      planted anchor, and the kick scales about whatever point that works out to,
      so the machine's base stays put through the swing at either end. */
   ctx.save();ctx.translate(W/2,lerp(H+h,H+(URNA_FILM+CORR_URNA_SINK)*h,rise));ctx.scale(s,s);
-  ctx.drawImage(im,-w/2,-h,w,h);
+  // the press also sinks it 2px, as it does in the fight - scaled, since the
+  // machine is drawn a good deal bigger here than it is on the phone dock
+  ctx.drawImage(im,-w/2,-h+(f?h*.0087:0),w,h);
   ctx.restore();
 }
-function corridorScene(){
-  const t=G.pt, hits=G.corrHits;
+/* The corridor itself, drawn at the origin. The compositor below is what slides
+   it, so nothing in here knows or cares where on the strip it ends up. */
+function corridorWorld(t){
+  const hits=G.corrHits;
   // the climb ends on the first stab; after that the camera is locked and only
   // the kicks move it
   const pan=ease(clamp(t/hits[0],0,1));
@@ -1384,6 +1517,19 @@ function corridorScene(){
     corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
   }
   corridorLogo(t);   // over everything, including him
+}
+/* The compositor. Nothing happens here at all until the trip starts, so the
+   scene draws exactly as it did before this existed. During the trip the two
+   screens ride the strip together and the lock pop scales the pair of them. */
+function corridorScene(){
+  const t=G.pt, {p,lock}=antaSlide(t);
+  if(p<=0&&lock<0){corridorWorld(t);return;}
+  const q=lock>=0?clamp(lock/CORR_PUNCH,0,1):1;
+  const k=1+CORR_ANTA_KICK*lockEnv(q);
+  ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
+  if(p<1){ctx.save();ctx.translate(-p*W,0);corridorWorld(t);ctx.restore();}
+  if(p>0){ctx.save();ctx.translate((1-p)*W,0);drawAntagonist();ctx.restore();}
+  ctx.restore();
 }
 function gatherScene(frozen){
   const L=gatherLayout(),e=L.e;
@@ -1538,10 +1684,15 @@ const URNA=[1,2,3].map(n=>{const i=new Image();i.src=encodeURI('assets/new/urna-
 const URNA_FLASH=.07, URNA_AFTER=.13;   // seconds on frame 2, then on frame 3
 let urnaHCss=-1;
 function setUrnaH(h){const hh=Math.round(h);if(hh!==urnaHCss){urnaHCss=hh;document.documentElement.style.setProperty('--urnaH',hh+'px');}}
-function drawUrna(){
+/* Which frame the machine is on, straight off G.lastMash: 1 the button struck
+   and flashing, 2 the residual sparks, 0 idle. Both screens that draw an urna
+   read it from here, so a press cannot look different in one than the other. */
+function urnaFrame(){
   const since=G.t-(G.lastMash??-9);
-  const f=since<URNA_FLASH?1:since<URNA_FLASH+URNA_AFTER?2:0;
-  const im=URNA[f];
+  return since<URNA_FLASH?1:since<URNA_FLASH+URNA_AFTER?2:0;
+}
+function drawUrna(){
+  const f=urnaFrame(), im=URNA[f];
   if(!im.complete||!im.naturalWidth)return;
   if(PORT){
     /* On a phone the urna is not scenery, it is the button: it owns the bottom
