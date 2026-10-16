@@ -1438,6 +1438,16 @@ const CORR_BALL_Y=.045, CORR_BALL_X=.018;
    number here, so it scales with him instead of drifting off his hands on a
    taller screen. Linear in the charge: no lift when empty, all of it at full. */
 const CORR_BALL_LIFT=.13;
+/* The sky going red as the ball tops out. CORR_RED_FROM is the share of the
+   charge where it starts to come in - below that there is none - and it ramps
+   linearly from there to full, so it arrives as you top out rather than snapping
+   on, and leaves again the moment the ball starts shrinking. It is laid over the
+   BACKDROP ONLY: see where it is drawn, before the ball, the man and the machine,
+   none of which are tinted.
+   The red is bright on purpose. The backdrop is a strong blue, and a dark or
+   half-transparent red over it lands in muddy purple; it takes a hot red at this
+   much alpha to actually read as a red sky rather than a bruise. */
+const CORR_RED_FROM=.85, CORR_RED_MAX=.62;
 /* Radius, empty -> full, also as a fraction of his height. The full size is
    deliberately larger than the room above him: at .214 of his height the top of
    the ball, and more of its glow, run off the top of the frame. That is the
@@ -1536,6 +1546,9 @@ function corridorWorld(t){
   ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
   drawCorridor(pan);
   ctx.restore();
+  // ...and the red over it, while it is still the only thing on the canvas
+  const red=clamp(((G.corrE||0)-CORR_RED_FROM)/(1-CORR_RED_FROM),0,1);
+  if(red>0){ctx.fillStyle='rgba(255,40,18,'+(red*CORR_RED_MAX).toFixed(3)+')';ctx.fillRect(0,0,W,H);}
   /* The urna's own climb, ending on the first stab. Capped against hits[0] so it
      can never be asked to begin before t=0. Before that first stab there is no
      kick to ride, so it is passed 0 rather than a q the swing would read as the
