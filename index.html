@@ -1629,8 +1629,12 @@ const corrCap=()=>G.corrPlus?CORR_E_MAX():1;
    swap reads as "the ball has reached the new size"; set it to 1/CORR_E_MAX()
    and he would change the moment it passes its old full instead. */
 const CORR_SHOUT_AT=.97;
-// per press. ~29 presses to fill; the fight's own mash is 1.75 of 100
-const CORR_MASH_GAIN=.035;
+/* per press. ~58 presses to fill; the fight's own mash is 1.75 of 100. Halved on
+   2026-10-16 - at .035 the ball was full before the player felt they had worked
+   for it. CORR_DECAY rides on this number rather than standing beside it, so the
+   bleed halves with it and the press RATE needed to hold the ball at the top is
+   unchanged: this knob buys length, not difficulty. */
+const CORR_MASH_GAIN=.0175;
 /* ...and it bleeds back down when you stop, the way the fight's does. Not the
    fight's number, its RATIO: there you gain 1.75 a press and lose .9 a second,
    so a second of idling costs you about half a press. This is that same half
