@@ -14,6 +14,12 @@
 /* Layout: one full-bleed canvas stage; HUD drawn in canvas; DOM overlays styled as manga panels (thick ink border, hard offset shadow). Single daylight look by design. */
 :root{
   --ink:#1b1512; --paper:#fffaf0; --muted:#5e5048; --sky:#1a88f9; --sun:#ffd23a; --ki:#ff5a2a; --red:#e4002b; --orb:#8fd8ff; --dust:#e8b066;
+  /* How tall the title character stands, as a multiple of the patch of sand he
+     was originally framed for. The sheets draw him at three scales and we moved
+     from the smallest to the middle one, so he is drawn at that figure's scale
+     too: 607px tall against the smallest's 414. Set this to 1 to put him back
+     at the size the layout was first built around. */
+  --manScale:1.466;
   /* the CONFIRMA key's own green, sampled off assets/new/urna-*.png - the how-to
      sentence points at that key by colour, so the two have to agree */
   --go:#0ae046;
@@ -162,7 +168,7 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
    construction, with nothing measured and nothing to go stale. */
 /* flex:none - he is the one thing in this column that must never be squashed to
    make room; everything else gives first. */
-#titleFoot{position:relative;width:100%;height:clamp(92px,17vh,165px);flex:none}
+#titleFoot{position:relative;width:100%;height:calc(clamp(92px,17vh,165px)*var(--manScale));flex:none}
 #titleSpr{position:relative;width:100%;height:100%}
 /* All three poses live in the DOM and are decoded up front. Swapping an <img>
    src at the instant the flight transform starts made Chrome rasterise the
@@ -185,10 +191,18 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
    body scale, the takeoff by his hat-to-feet height - with the feet pinned to
    the ground by bottom:0. He is now one size through the whole move, and the
    fist is free to reach above the frame. */
-/* (these need the #titleSpr prefix: a bare id loses to "#titleSpr .pose" above) */
+/* The two recipes, so these can be re-derived if POSE_FIGURE ever changes.
+   Measure each sliced figure's pixel height h and its widest opaque row W:
+     crouch% = (W/h of the standing figure) / (W/h of the crouch figure)
+     fly%    = h / (h - the rows the raised fist occupies above the hat)
+   Figure 2 (smallest): crouch 84.6%, fly 117.3%  <- what these were before
+   Figure 1 (middle, current): crouch 90.4%, fly 118.2%
+   The crouch moves a long way between the two because the middle figure stands
+   much narrower (316/600 against the smallest's 236/411), which is art, not scale.
+   (these need the #titleSpr prefix: a bare id loses to "#titleSpr .pose" above) */
 #titleSpr #poseStern{height:100%}
-#titleSpr #poseCrouch{height:84.5%}
-#titleSpr #poseFly{height:117%}      /* >100% on purpose: the fist is above his hat */
+#titleSpr #poseCrouch{height:90.4%}
+#titleSpr #poseFly{height:118.2%}    /* >100% on purpose: the fist is above his hat */
 .eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;cursor:pointer;color:var(--ink)}
 .primary{font-family:var(--display);font-size:30px;letter-spacing:.05em;background:var(--sun);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:6px 20px}
@@ -251,8 +265,14 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
    has to give once the options are set to the width of the stars; the offsets
    scale back here so everything still fits on screen. */
 @media (max-height:780px){
-  #menu .card{padding-top:70px}
-  #titleFoot{margin-bottom:45px}
+  /* These two gave ground again when the character moved to the middle figure's
+     scale: he is half again as tall as the art this column was first laid out
+     for, and a 720p-tall window had no 50px to spare. The card overflows the
+     viewport here and is centred in it, so every pixel of height costs HALF a
+     pixel at his feet - which is why the numbers moved this far to buy back the
+     15px he was overrunning by. */
+  #menu .card{padding-top:36px}
+  #titleFoot{margin-bottom:30px}
   #menu .star{margin-bottom:20px}
 }
 /* nothing like 150px of head room exists on a sideways phone */
@@ -266,7 +286,7 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
   #menu .howto,#menu .primary{font-size:30px}   /* short screens have to give some of it back */
   #menu .card p{font-size:12px}
   #menu #howtoBody p{font-size:17px;line-height:1.28}
-  #titleFoot{height:clamp(66px,12vh,120px)}
+  #titleFoot{height:calc(clamp(66px,12vh,120px)*var(--manScale))}
   .star{display:none}
   /* the star is what carries margin-top:auto, so he has to carry it himself here
      or there is nothing left to push him down to the sand */
@@ -427,8 +447,15 @@ function loadBackURL(url,persist){
 }
 loadBackURL('assets/hero-back2.png',false);
 /* Title-screen character, two poses. Each sheet holds the same figure at three
-   scales on green; sliceStrip keys the green and splits the row, and we keep the
-   last (smallest) figure of each. Hovering on the menu, fist-up once he takes off. */
+   scales on green; sliceStrip keys the green and splits the row, and we keep one
+   of them. Hovering on the menu, fist-up once he takes off.
+   POSE_FIGURE picks which: 0 biggest, 2 smallest. It is NOT just a resolution
+   choice - the three are drawn differently (the middle one is slimmer and finer
+   featured, and its crouch takes a much narrower stance), and the three CSS
+   heights under #titleSpr are calibrated against whichever is chosen, as is
+   --manScale. Change this and those four numbers have to be re-derived; the
+   recipe and the measured values for figures 1 and 2 are written down there. */
+const POSE_FIGURE=1;
 const POSE={stern:$('poseStern'),crouch:$('poseCrouch'),fly:$('poseFly')};
 function setTitleSprite(name){
   const el=$('titleSpr');if(!el||!POSE[name]||!POSE[name].src)return;
@@ -437,7 +464,7 @@ function setTitleSprite(name){
 }
 function loadPose(file,el,after){const i=new Image();
   i.onload=()=>{try{
-    const f=sliceStrip(i);el.src=f[f.length-1].toDataURL('image/png');
+    const f=sliceStrip(i);el.src=f[Math.min(POSE_FIGURE,f.length-1)].toDataURL('image/png');
     // force the decode now, while nothing is animating
     const d=el.decode?el.decode().catch(()=>{}):Promise.resolve();
     if(after)d.then(after);
