@@ -1111,24 +1111,36 @@ function bar(x,y,w,h,v,col,name){
 /* ---------- scenes ---------- */
 /* `pt` lets a caller outside the fullShot phase run this shot on its own clock -
    the corridor borrows it. Called with nothing it reads the phase time exactly
-   as it always did, so phase 1 cannot tell the parameter is there. */
-function opening(pt){
-  const p=clamp((pt??G.pt)/3.6,0,1);
+   as it always did, so phase 1 cannot tell the parameter is there.
+   `o` is the same shot dressed differently, for the corridor's SECOND trip up:
+   every number phase 1 uses lives in OPEN_1 and is what the parameter defaults
+   to, so the two callers share one body and phase 1 shares it unchanged. Adding
+   a field means adding it to OPEN_1 with the value this function used to have
+   written in - that is the whole contract. */
+const OPEN_1={dur:3.6, r0:0, r1:.045, threads:null, pal:null,
+              glow:'rgba(110,195,255,.55)', core:'rgba(255,255,255,.9)'};
+function opening(pt,o){
+  const O=o||OPEN_1;
+  const p=clamp((pt??G.pt)/O.dur,0,1);
   spaceBG();drawStars(1,-p*20,0);
   const R=Math.min(W*(PORT?.46:.4),H*.4),cx=W/2,cy=H*.54;
   const T=planetTarget(cx,cy,R,false,-1.25);
   ctx.save();const k=1+.07*ease(p);ctx.translate(T.x,T.y);ctx.scale(k,k);ctx.translate(-T.x,-T.y);
   drawPlanet(cx,cy,R);
-  for(const th of THREADS){
+  for(const th of (O.threads||THREADS)){
     const q=clamp((p*1.5-th.d)/.6,0,1);if(q<=0)continue;
     const sx=cx+Math.cos(th.a)*th.r*R, sy=cy+Math.sin(th.a)*th.r*R;
     const mx=(sx+T.x)/2,my=(sy+T.y)/2;const nx=mx-cx,ny=my-cy,nl=Math.hypot(nx,ny)||1;
     const px=mx+nx/nl*R*.35,py=my+ny/nl*R*.35;
     ctx.beginPath();let hx=sx,hy=sy;
     for(let i=0;i<=18;i++){const s=i/18*q,a=(1-s)*(1-s),b=2*(1-s)*s,c=s*s;hx=a*sx+b*px+c*T.x;hy=a*sy+b*py+c*T.y;i?ctx.lineTo(hx,hy):ctx.moveTo(hx,hy);}
-    ctx.lineCap='round';ctx.strokeStyle='rgba(110,195,255,.55)';ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.1;ctx.stroke();
+    ctx.lineCap='round';ctx.strokeStyle=O.glow;ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle=O.core;ctx.lineWidth=1.1;ctx.stroke();
   }
-  drawSphere(T.x,T.y,3+p*p*Math.min(W,H)*.045,G.t);
+  /* The ball grows from r0 to r1 on the same squared curve it always did. Phase
+     1 starts it at nothing; the corridor's second trip starts it at the size
+     the first trip ENDED on, so the thing that comes back up is the one that
+     went down - it does not get re-lit from a spark. */
+  drawSphere(T.x,T.y,3+(O.r0+(O.r1-O.r0)*p*p)*Math.min(W,H),G.t,1,O.pal||ORB_COOL);
   ctx.restore();
 }
 
@@ -1412,12 +1424,21 @@ function shakeOff(amp,t){
    the shake has somewhere to move into and can never pull the picture off its
    own edge - the canvas is never cleared, and what is under this is the other
    half of a slide. */
-function drawPlate(img,anchor,amp,t){
+function drawPlate(img,anchor,amp,t,ax){
   if(!img.complete||!img.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return;}
   const iw=img.naturalWidth,ih=img.naturalHeight,pad=amp+1;
   const s=Math.max((W+pad*2)/iw,(H+pad*2)/ih), w=iw*s, h=ih*s;
   const o=amp>0?shakeOff(amp,t):{x:0,y:0};
-  ctx.drawImage(img,(W-w)/2+o.x,clamp(-(h-H)*anchor,-(h-H-pad),-pad)+o.y,w,h);
+  /* `ax` is the same idea sideways, and it only does anything on a phone: a
+     16:9 plate has no width to spare on a desktop, while in portrait it is
+     showing about a quarter of the picture and WHICH quarter is the whole
+     question. These faces are drawn right of centre, so centring the window
+     would crop the shout off the man it belongs to. Left at .5 it is the
+     plain centre crop the first two plates take. */
+  const x=clamp(-(w-W)*(ax==null?.5:ax),-(w-W-pad),-pad)+o.x,
+        y=clamp(-(h-H)*anchor,-(h-H-pad),-pad)+o.y;
+  ctx.drawImage(img,x,y,w,h);
+  return {x:x,y:y,w:w,h:h};   // what it actually painted - ragePlate tints exactly this
 }
 const CORR_LOSER_TOP=.30, CORR_ROAR_TOP=.06;
 /* How red the screen stays once we are home - and it cannot be laid down the way
@@ -1428,18 +1449,102 @@ const CORR_LOSER_TOP=.30, CORR_ROAR_TOP=.06;
    his cuffs - and only the hue and saturation are replaced. That is a red room
    with him still legible in it rather than a red sheet over him. A little flat
    red follows it, source-over, to warm the blacks the blend leaves cold. */
-const CORR_RAGE_RED=.82, CORR_RAGE_WASH=.10;
-/* Where the screen stops. The roar plate, the red over it, and nothing else:
-   no ball, no hover, no bands. The machine is not drawn here - it is the
-   compositor's, as it has been since it stopped travelling. */
-function rageWorld(){
-  drawPlate(ROAR,CORR_ROAR_TOP,CORR_RAGE_SHAKE*H,G.t);
+/* ...and how red it reads is the fill's SATURATION, never this alpha. The blend
+   replaces the plate's hue with the fill's; part-way through, at .5, it does not
+   read as half as red - it reads as PURPLE, because what it is halfway between
+   is the plate's own blue and the red. So the alpha stays high enough to take
+   the blue right out and never moves again.
+   The dial is CORR_RAGE_SAT, and it is a SCALE with both ends defined, because
+   more of these screens are coming and each will want its own place on it: 0 is
+   a grey day, .5 is warm, 1 is the furnace this started at. Anything that wants
+   to be redder than here has room above it, which is the whole point of writing
+   it as a number from 0 to 1 instead of a hex nobody can rank. Lightness is
+   ignored by a colour blend, so there is only ever one number to pick. */
+const CORR_RAGE_SAT=.62;
+const rageHue=sat=>'hsl(6,'+Math.round(clamp(sat,0,1)*100)+'%,50%)';
+const CORR_RAGE_RED=.92, CORR_RAGE_WASH=.05;
+/* A red screen: the plate, rumbling, with the colour blend over it and nothing
+   else - no ball, no hover, no bands. The machine is not drawn here, it is the
+   compositor's, as it has been since it stopped travelling.
+   There are two of these now and there will be more, so every screen is the
+   same four numbers: which plate, how it is framed, how hard it shakes and
+   where it sits on the red scale. Each one up is a step up on all of them. */
+function ragePlate(img,top,ax,shake,sat){
+  /* The tint covers exactly what the plate PAINTED, not the frame. A plate is
+     fitted bigger than its frame - `pad` for the shake to move into, and more
+     than that whenever its aspect does not match - and on a strip that margin
+     is on screen: the panel sliding in paints a little to the left of its own
+     origin, so a tint stopped at 0 left a band of raw blue art running down the
+     seam. Measured at 13px before this, 0 after. */
+  const r=drawPlate(img,top,shake*H,G.t,ax);
   ctx.save();
   ctx.globalCompositeOperation='color';
   ctx.globalAlpha=CORR_RAGE_RED;
-  ctx.fillStyle='#ff2812';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=rageHue(sat);ctx.fillRect(r.x,r.y,r.w,r.h);
   ctx.restore();
-  ctx.fillStyle='rgba(255,40,18,'+CORR_RAGE_WASH+')';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,40,18,'+CORR_RAGE_WASH+')';ctx.fillRect(r.x,r.y,r.w,r.h);
+}
+function rageWorld(){ragePlate(ROAR,CORR_ROAR_TOP,.5,CORR_RAGE_SHAKE,CORR_RAGE_SAT);}
+/* ...and the one the planet drops us back onto. Redder, and shaking harder:
+   the ask each time is "the same, but more", so these are the first screen's
+   numbers stepped up rather than values picked afresh. */
+const RAGE2=new Image();RAGE2.src=encodeURI('assets/new/Power-Up Roar Under Energy Streaks.png');
+const LOSER2=new Image();LOSER2.src=encodeURI('assets/new/powered-up-loser-02.png');
+[RAGE2,LOSER2].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
+const CORR_RAGE2_SAT=.74;                      // against .62
+const CORR_RAGE2_SHAKE=REDUCED?.007:.024;      // against .017
+const CORR_RAGE2_TOP=.5, CORR_RAGE2_AX=.73;    // 16:9, so TOP only bites on a tall window
+const CORR_RAGE2_HOLD=2.6;                     // s before the screen goes sideways
+function rage2World(){ragePlate(RAGE2,CORR_RAGE2_TOP,CORR_RAGE2_AX,CORR_RAGE2_SHAKE,CORR_RAGE2_SAT);}
+/* The last cut, and the last thing the scene does. Out to him and no further -
+   it parks at p=1 and stays, the way the roar screen used to. */
+const CORR_END_SLIDE=CORR_ROAR_SLIDE;
+const CORR_LOSER2_SHAKE=REDUCED?.005:.016;     // against the first loser's .011
+const CORR_LOSER2_TOP=.5, CORR_LOSER2_AX=.60;
+/* ...and this one is red as well, which the first enemy cut was not: by here
+   the red has stopped being the hero's screen and become the whole picture.
+   One step above the roar screen it cuts away from, since nothing in this
+   finish steps back down. */
+const CORR_LOSER2_SAT=.80;
+function endSlide(){
+  const a=G.corrEnd, S=CORR_END_SLIDE;
+  if(!(a>=0))return null;
+  return a<S?{p:easeOut(a/S),lock:-1}:{p:1,lock:a-S};
+}
+/* ---- the last trip up ----
+   The rage screen holds, and then the screen goes up to the planet one more
+   time. It is the SAME shot - opening(), the whole globe with the energy
+   coming in - dressed differently, which is what OPEN_1/OPEN_2 are for:
+   - the ball starts where the first trip left it (`r0` = the other shot's `r1`)
+     and goes on from there, so it reads as the one that is already up there
+     rather than a new one being lit;
+   - `THREADS2` is more than twice the energy, and it is RED, because the ball
+     it is feeding is red now (ORB_HOT, the corridor's own palette). Put
+     OPEN_1's two colours back in `glow`/`core` for blue feed lines into a red
+     ball, which was the other way to read the request.
+   And unlike the first trip there is no way home: it fades up, gathers, and
+   holds there. More comes after it, by the user's own account - this is where
+   the scene waits. */
+const CORR_RAGE_HOLD=3;        // s on the roaring screen before it goes up
+const THREADS2=Array.from({length:200},()=>({a:Math.random()*TAU,r:Math.sqrt(Math.random())*.95,d:Math.random()*.55}));
+const OPEN_2={dur:4.4, r0:OPEN_1.r1, r1:.082, threads:THREADS2, pal:ORB_HOT,
+              glow:'rgba(255,120,36,.55)', core:'rgba(255,236,198,.92)'};
+const corrGlobe2=()=>G.corrGlobe2>=0;
+/* How long the shot is up: its own gather, plus a beat of holding the finished
+   ball before the screen leaves it. */
+const CORR_GLOBE2_TAIL=1.2;
+const CORR_GLOBE2_HOLD=OPEN_2.dur+CORR_GLOBE2_TAIL;
+const CORR_GLOBE2_TRIP=()=>CORR_GLOBE_FADE*2+CORR_GLOBE2_HOLD;
+/* The same four-part fade the first trip takes, with one difference that
+   matters: `home` says WHICH red screen is behind the black, because the one we
+   left is not the one we come back to. Out from the roar, up to the planet,
+   and down onto a redder screen than the one that went out. */
+function globe2Fade(){
+  const a=G.corrGlobe2, F=CORR_GLOBE_FADE, D=CORR_GLOBE2_HOLD;
+  if(!(a>=0))return null;
+  if(a<F)return {shot:-1,veil:a/F,home:0};
+  if(a<F+D)return {shot:a-F,veil:clamp(Math.max(1-(a-F)/F,(a-F-D+F)/F),0,1),home:0};
+  return {shot:-1,veil:1-(a-F-D)/F,home:1};
 }
 /* The trip itself, in the same shape antaSlide reports: p along the strip, and
    `lock` the seconds since it set down. `home` is the one thing the first cut
@@ -1459,9 +1564,9 @@ function roarSlide(){
    resize or a rotate carries the plume with the thing it is coming out of
    instead of leaving it hanging in the sky. Dark, not white: the screen behind
    it is a red one, and pale smoke on red reads as steam. */
-const CORR_SMOKE_RATE=8;      // puffs a second
+const CORR_SMOKE_RATE=17;     // puffs a second
 const CORR_SMOKE_LIFE=1.9;     // s each, so ~29 alive at a time
-const CORR_SMOKE_R0=.07, CORR_SMOKE_R1=.30;   // of the machine's width, new -> old
+const CORR_SMOKE_R0=.026, CORR_SMOKE_R1=.095; // of the machine's width, new -> old
 const CORR_SMOKE_SPREAD=.13;   // of its width, where along the rim they start
 /* How far up the frame one gets. This is the number that decides whether the
    plume reads at all: smoke is thickest where it is coming OUT, and at .34 the
@@ -1658,7 +1763,30 @@ function corrFullTick(dt){
     if(G.corrRoar>=CORR_ROAR_TRIP()){G.corrRoar=-1;G.corrRage=G.pt;}
     return;
   }
-  if(corrRage())return;                  // the scene has stopped; nothing re-arms
+  if(corrRage()){
+    /* Everything past the first roar, in the order it happens. Each stage hands
+       over by setting the next one's clock, and the last one never hands over:
+       the scene waits on the final cut until there is something to put after
+       it. Read bottom-up, these are the four screens of the finish. */
+    if(G.corrEnd>=0){G.corrEnd+=dt;return;}            // out to him, and that is all
+    if(G.corrRage2>=0){
+      if(G.pt-G.corrRage2>=CORR_RAGE2_HOLD){
+        G.corrEnd=0;
+        tone('sawtooth',80,32,2,.09);noise(1.3,.14,340);
+      }
+      return;
+    }
+    if(corrGlobe2()){
+      G.corrGlobe2+=dt;
+      if(G.corrGlobe2>=CORR_GLOBE2_TRIP()){G.corrGlobe2=-1;G.corrRage2=G.pt;}
+      return;
+    }
+    if(G.pt-G.corrRage>=CORR_RAGE_HOLD){
+      G.corrGlobe2=0;
+      tone('sine',120,900,2.2,.08);noise(1.4,.11,520);
+    }
+    return;
+  }
   /* Past the planet the same gesture means something else. Holding the ball at
      the top no longer sends the screen up - the planet answers once a run - it
      sends it sideways, and the top it has to be held at is the NEW one, which
@@ -1693,7 +1821,7 @@ function corridorHit(i){
   tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
   if(!i)tone('square',880,440,.09,.045);
 }
-function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;G.corrRoar=-1;G.corrRage=-1;G.corrSmoke=[];G.corrSmokeAcc=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;G.corrRoar=-1;G.corrRage=-1;G.corrGlobe2=-1;G.corrRage2=-1;G.corrEnd=-1;G.corrSmoke=[];G.corrSmokeAcc=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
 /* The corridor's own mash. It drives the same G.lastMash the fight's does, which
    is what makes the machine animate identically here - urnaFrame() reads that
    one clock and nothing else.
@@ -1971,6 +2099,30 @@ function corridorScene(){
     if(roar.p>0){ctx.save();ctx.translate((1-roar.p)*W,0);
       drawPlate(LOSER,CORR_LOSER_TOP,CORR_LOSER_SHAKE*H,G.t);ctx.restore();}
     ctx.restore();
+    corrUrnaNow(t);return;
+  }
+  /* The finish, in reverse order of when it happens - the latest stage wins the
+     frame. The machine is on the glass in every one of them, lit, pressable and
+     smoking: it is the only thing that has been on screen since the beginning
+     and it does not leave for any of this. */
+  const end=endSlide();
+  if(end){
+    const eq=end.lock>=0?clamp(end.lock/CORR_PUNCH,0,1):1;
+    const ek=1+CORR_ANTA_KICK*lockEnv(eq);
+    ctx.save();ctx.translate(W/2,H/2);ctx.scale(ek,ek);ctx.translate(-W/2,-H/2);
+    if(end.p<1){ctx.save();ctx.translate(-end.p*W,0);rage2World();ctx.restore();}
+    ctx.save();ctx.translate((1-end.p)*W,0);
+    ragePlate(LOSER2,CORR_LOSER2_TOP,CORR_LOSER2_AX,CORR_LOSER2_SHAKE,CORR_LOSER2_SAT);
+    ctx.restore();ctx.restore();
+    corrUrnaNow(t);return;
+  }
+  if(G.corrRage2>=0){rage2World();corrUrnaNow(t);return;}
+  /* Up for the last time. The machine stays on the glass through the fade and
+     through the shot, lit and pressable, exactly as it did on the first trip. */
+  const up=globe2Fade();
+  if(up){
+    if(up.shot>=0)opening(up.shot,OPEN_2);else if(up.home)rage2World();else rageWorld();
+    if(up.veil>0){ctx.fillStyle='rgba(0,0,0,'+up.veil.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
     corrUrnaNow(t);return;
   }
   if(corrRage()){rageWorld();corrUrnaNow(t);return;}
