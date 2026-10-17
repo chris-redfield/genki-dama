@@ -20,7 +20,7 @@
      too: 607px tall against the smallest's 414. Set this to 1 to put him back
      at the size the layout was first built around. */
   --manScale:1.466;
-  /* the CONFIRMA key's own green, sampled off assets/new/urna-*.png - the how-to
+  /* the CONFIRMA key's own green, sampled off assets/new/urna-*.webp - the how-to
      sentence points at that key by colour, so the two have to agree */
   --go:#0ae046;
   --display:"Titan One",Impact,"Arial Black",sans-serif;
@@ -291,7 +291,7 @@ button:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
 
   <div class="overlay" id="menu">
     <div class="card">
-      <h1><img id="titleLogo" src="assets/title-logo.png" alt="Vô votar no 13!"></h1>
+      <h1><img id="titleLogo" src="assets/title-logo.webp" alt="Vô votar no 13!"></h1>
       <div class="row"><button class="primary" id="bStart">COMEÇAR</button></div>
       <div class="howtoWrap">
         <button class="howto" id="bHowto" aria-expanded="false" aria-controls="howtoBody">COMO JOGAR</button>
@@ -326,7 +326,7 @@ let W=800,H=450,DPR=1;
    corridor does neither - it reads W and H directly, and its machine is drawn
    on top of the scene rather than in a strip taken out of it. */
 let PORT=false;
-const URNA_AR=1024/1536;      // assets/new/urna-*.png, all three frames
+const URNA_AR=1024/1536;      // assets/new/urna-*.webp, all three frames
 function reframe(){PORT=H>W*1.1;}
 function resize(){const r=stage.getBoundingClientRect();W=Math.max(300,r.width);H=Math.max(240,r.height);DPR=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);reframe();}
 addEventListener('resize',resize);
@@ -393,18 +393,18 @@ function loadPose(file,el,after){const i=new Image();
   }catch(e){}};
   i.src=encodeURI(file);}
 // standing on the menu...
-loadPose('assets/new/Three Stern Suit-Wearing Elders.png',POSE.stern,
+loadPose('assets/new/Three Stern Suit-Wearing Elders.webp',POSE.stern,
   ()=>{if(INTRO.state==='idle')setTitleSprite('stern');});
 // ...a glimpse of him braced to jump the moment COMECAR is hit...
 // (same sheet dimensions and the same three scales as the standing sheet, so its
 //  smallest figure is 411px tall against the standing one's 414 - the pose reads
 //  as a crouch through the widened stance, not through height, and .pose's
 //  height:100% needs no correction for it.)
-loadPose('assets/new/Three Stern Suit-Clad Figures.png',POSE.crouch);
+loadPose('assets/new/Three Stern Suit-Clad Figures.webp',POSE.crouch);
 // ...and straight out of it into the climb, fist-first. There is no hovering
 // frame in between any more: he crouches and goes.
 // Both are pre-decoded so neither swap can flash mid-transition.
-loadPose('assets/new/Three-scale Lula takeoff sprite sheet.png',POSE.fly);
+loadPose('assets/new/Three-scale Lula takeoff sprite sheet.webp',POSE.fly);
 
 /* ---------- audio ---------- */
 let AC=null,master,noiseBuf;
@@ -548,10 +548,10 @@ function update(dt){
 /* ---------- art: palette, background, planet ---------- */
 const INK='#1b1512', SKY='#1a88f9', DUST='#e8b066', DUST_D='#d6984f', ORB_B='#8fd8ff', ORB_L='#d4f3ff', KI='#ff5a2a';
 const BG1=new Image();BG1.src='assets/bg-gathering.jpg';const BG1_HZ=724/941;
-// Title screen backdrop. fundo-1.png is a tall 1024x1536 scene; the title screen
+// Title screen backdrop. fundo-1.webp is a tall 1024x1536 scene; the title screen
 // shows ONLY its bottom third (the horizon + ground band). The upper two thirds are
 // deliberately left unrendered here - they are for in-game use later.
-const FUNDO=new Image();FUNDO.src='assets/fundo-1.png';
+const FUNDO=new Image();FUNDO.src='assets/fundo-1.webp';
 /* Landscape keeps the bottom third it was framed for. A phone takes a taller
    slice: a third of a 1024-wide image stretched over a portrait screen is a 1.6x
    upscale of the sky, while 60% of it lands just under 1:1 - sharper, and it
@@ -567,7 +567,7 @@ function drawFundoTitle(pan=0){
   // there is no vertical slack to slide the destination into. Push the framing down by
   // taking the source window TITLE_DROP screen px higher up the image instead.
   // pan 0 = title framing; pan 1 = sy 0, the top of the image, i.e. open sky.
-  // This is what the upper two thirds of fundo-1.png were being kept for.
+  // This is what the upper two thirds of fundo-1.webp were being kept for.
   const sy=Math.max(0,ih-sh-TITLE_DROP/k)*(1-pan);
   ctx.drawImage(FUNDO,0,sy,iw,sh,(W-w)/2,(H-h)/2,w,h);
   return true;
@@ -788,7 +788,7 @@ function titleScene(){
    the top of fundo-1 and still climbing, so this picks that climb up on a fresh
    backdrop and carries it to a stop. It runs slower than the pan on purpose:
    the takeoff is the burst, this is the long coast at the top of it. */
-const CORR=new Image();CORR.src='assets/Anime Sky Cloud Corridor.png';
+const CORR=new Image();CORR.src='assets/Anime Sky Cloud Corridor.webp';
 // decode it while the menu is up, so the cut into the climb does not hitch on a
 // first-draw of a 1111x1416 png (same reason the floor is warmed up there)
 CORR.addEventListener('load',()=>{CORR.decode&&CORR.decode().catch(()=>{});});
@@ -891,7 +891,7 @@ const CORR_LOGO_KICK=.22;     // its entrance, on the same swing everything else
    box is a little taller than what you see, and the clearance below is measured
    against the content, not the box. */
 const CORR_LOGO_H=.50, CORR_LOGO_WMAX=.88, CORR_LOGO_MID=.42;
-const LOGO2=new Image();LOGO2.src=encodeURI('assets/new/Vô votar no 13! Brush Logo.png');
+const LOGO2=new Image();LOGO2.src=encodeURI('assets/new/Vô votar no 13! Brush Logo.webp');
 LOGO2.addEventListener('load',()=>{LOGO2.decode&&LOGO2.decode().catch(()=>{});});
 /* ---- the antagonist cut ----
    A beat after the logo has gone, the screen cuts to him and then straight back.
@@ -908,7 +908,7 @@ const CORR_ANTA_KICK=.045;    // the bump as the slide sets down
    show the previous one in the margins, because the canvas is never cleared.
    Clamping to the positive half keeps it a bump with no gap to pay for. */
 const lockEnv=q=>Math.max(0,kickEnv(q));
-const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V3.jpg');
+const ANTA=new Image();ANTA.src=encodeURI('assets/new/antagonist-V3.webp');
 ANTA.addEventListener('load',()=>{ANTA.decode&&ANTA.decode().catch(()=>{});});
 const corrAntaIn=()=>corrSong(CORR_VOX-CORR_LOGO_LEAD)+CORR_LOGO_HOLD+CORR_LOGO_OUT+CORR_ANTA_WAIT;
 const CORR_ANTA_TRIP=()=>CORR_ANTA_SLIDE*2+CORR_ANTA_HOLD;
@@ -976,8 +976,8 @@ const CORR_ROAR_HOLD=1.5;                // s parked on him
 const CORR_ROAR_TRIP=()=>CORR_ROAR_SLIDE*2+CORR_ROAR_HOLD;
 const corrRoar=()=>G.corrRoar>=0;
 const corrRage=()=>G.corrRage>=0;
-const LOSER=new Image();LOSER.src=encodeURI('assets/new/Powered-Up-loser-01.png');
-const ROAR=new Image();ROAR.src=encodeURI('assets/new/Elderly Power-Up Roar in Blue.png');
+const LOSER=new Image();LOSER.src=encodeURI('assets/new/Powered-Up-loser-01.webp');
+const ROAR=new Image();ROAR.src=encodeURI('assets/new/Elderly Power-Up Roar in Blue.webp');
 [LOSER,ROAR].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 /* The rumble, and the one effect here that is NOT a smooth curve. A sine reads
    as a float and fresh noise every frame reads as video static; hand-drawn
@@ -1080,8 +1080,8 @@ function rageWorld(){ragePlate(ROAR,CORR_ROAR_TOP,.5,CORR_RAGE_SHAKE,CORR_RAGE_S
 /* ...and the one the planet drops us back onto. Redder, and shaking harder:
    the ask each time is "the same, but more", so these are the first screen's
    numbers stepped up rather than values picked afresh. */
-const RAGE2=new Image();RAGE2.src=encodeURI('assets/new/Power-Up Roar Under Energy Streaks.png');
-const LOSER2=new Image();LOSER2.src=encodeURI('assets/new/powered-up-loser-02.png');
+const RAGE2=new Image();RAGE2.src=encodeURI('assets/new/Power-Up Roar Under Energy Streaks.webp');
+const LOSER2=new Image();LOSER2.src=encodeURI('assets/new/powered-up-loser-02.webp');
 [RAGE2,LOSER2].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 const CORR_RAGE2_SAT=.74;                      // against .62
 const CORR_RAGE2_SHAKE=REDUCED?.007:.024;      // against .017
@@ -1112,7 +1112,7 @@ const CORR_END_SLIDE=CORR_ROAR_SLIDE;
    is that constant and not a copy of its value. */
 const CORR_CUT_HOLD=CORR_RAGE2_HOLD;
 const CORR_CUT_SHAKE=REDUCED?.007:.024;        // the roaring screen's rumble, carried on
-const PANIC=new Image();PANIC.src=encodeURI('assets/new/Panicked Anime Hero Facing Blast.png');
+const PANIC=new Image();PANIC.src=encodeURI('assets/new/Panicked Anime Hero Facing Blast.webp');
 PANIC.addEventListener('load',()=>{PANIC.decode&&PANIC.decode().catch(()=>{});});
 /* ---- the disintegration ----
    How one keyframe becomes the next. Not a slide and not a long dissolve: the
@@ -1164,12 +1164,12 @@ const cutIn=c=>c.in==='cut'?0:c.in==='orbit'?CORR_ORBIT_TRIP():CORR_END_SLIDE;
 const CORR_DISINT_MIX=.12;      // s of cross-dissolve. 0 makes it a hard cut
 const CORR_DISINT_FLASH=.22, CORR_DISINT_FLASH_A=.42;
 const CORR_DISINT_KICK=.05;
-const BLAST1=new Image();BLAST1.src=encodeURI('assets/new/Suit Under the Energy Blast.png');
-const BLAST2=new Image();BLAST2.src=encodeURI('assets/new/Anime Warrior Disintegrating in Energy Blast.png');
-const BLAST3=new Image();BLAST3.src=encodeURI('assets/new/Anime Energy Blast Disintegration Scene.png');
+const BLAST1=new Image();BLAST1.src=encodeURI('assets/new/Suit Under the Energy Blast.webp');
+const BLAST2=new Image();BLAST2.src=encodeURI('assets/new/Anime Warrior Disintegrating in Energy Blast.webp');
+const BLAST3=new Image();BLAST3.src=encodeURI('assets/new/Anime Energy Blast Disintegration Scene.webp');
 [BLAST1,BLAST2,BLAST3].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
-const SCREAM=new Image();SCREAM.src=encodeURI('assets/new/Elderly Power-Up Scream.png');
-const ATTACK=new Image();ATTACK.src=encodeURI('assets/new/Furious Elder’s Energy Attack Pose.png');
+const SCREAM=new Image();SCREAM.src=encodeURI('assets/new/Elderly Power-Up Scream.webp');
+const ATTACK=new Image();ATTACK.src=encodeURI('assets/new/Furious Elder’s Energy Attack Pose.webp');
 [SCREAM,ATTACK].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 const CUTS=[
   // out to him, the way every enemy cut in this scene has gone: rightward
@@ -1219,7 +1219,7 @@ const CORR_PAN_DUR=5.5;       // s of travel, top to bottom. "relatively slowly"
    exactly, leaving nothing to pan, so there the picture is pushed in until
    there is. */
 const CORR_END_PAN=.45;
-const RALLY=new Image();RALLY.src=encodeURI('assets/new/Vast Red Rally Under Cumulus Skies.png');
+const RALLY=new Image();RALLY.src=encodeURI('assets/new/Vast Red Rally Under Cumulus Skies.webp');
 RALLY.addEventListener('load',()=>{RALLY.decode&&RALLY.decode().catch(()=>{});});
 const corrOver=()=>G.corrOver>=0;
 const CORR_BLOW_TOP=()=>CORR_BLOW_IN+CORR_BLOW_HOLD;
@@ -1389,7 +1389,7 @@ const CORR_CTA_HOLD=1.15, CORR_CTA_OUT=CORR_LOGO_OUT;
    own art begins around y.70, which is what sets both the width and the .54
    centre, with roughly 20px of slack at each end. Widen it and it has to move. */
 const CORR_CTA_W=()=>PORT?.86:.52, CORR_CTA_HMAX=.34, CORR_CTA_MID=.54;
-const CTA=new Image();CTA.src=encodeURI('assets/new/Aperta Verde e Confirma Logo.png');
+const CTA=new Image();CTA.src=encodeURI('assets/new/Aperta Verde e Confirma Logo.webp');
 CTA.addEventListener('load',()=>{CTA.decode&&CTA.decode().catch(()=>{});});
 // the slide sets down at the end of its round trip; the text follows one beat later
 const corrCtaIn=()=>corrAntaIn()+CORR_ANTA_TRIP()+CORR_CTA_WAIT;
@@ -1417,7 +1417,7 @@ function corridorCta(t){corridorBand(CTA,t-corrCtaIn(),CORR_CTA_HOLD);}
    the words land on a screen that is already there. Hence a wait of zero; give
    it one to put a beat between the two. */
 const CORR_NP_WAIT=0, CORR_NP_HOLD=1.15;
-const NOPARE=new Image();NOPARE.src=encodeURI('assets/new/Não Pare de Apertar Confirma!.png');
+const NOPARE=new Image();NOPARE.src=encodeURI('assets/new/Não Pare de Apertar Confirma!.webp');
 NOPARE.addEventListener('load',()=>{NOPARE.decode&&NOPARE.decode().catch(()=>{});});
 function corridorBack(t){corridorBand(NOPARE,t-(G.corrBack??-9)-CORR_NP_WAIT,CORR_NP_HOLD);}
 /* ---- up to the full shot ----
@@ -1593,7 +1593,7 @@ function drawCorridor(pan){
 let CORR_MAN=null;
 (function(){const i=new Image();
   i.onload=()=>{try{CORR_MAN=sliceStrip(i)[0];}catch(e){}};
-  i.src=encodeURI('assets/new/Low-angle levitating sprite trio.png');})();
+  i.src=encodeURI('assets/new/Low-angle levitating sprite trio.webp');})();
 /* ...and the same figure again, shouting, for when the ball outgrows what he
    could hold before. Same three-scale green sheet, same biggest slice: 657x754
    against the other's 414x763, so he is drawn at the SAME height and only the
@@ -1601,7 +1601,7 @@ let CORR_MAN=null;
 let CORR_SHOUT=null;
 (function(){const i=new Image();
   i.onload=()=>{try{CORR_SHOUT=sliceStrip(i)[0];}catch(e){}};
-  i.src=encodeURI('assets/new/Three Shouting Bearded Men in Blue Suits.png');})();
+  i.src=encodeURI('assets/new/Three Shouting Bearded Men in Blue Suits.webp');})();
 /* He is taller than the frame on purpose - he towers, and his feet run off the
    bottom where the urna is covering them anyway. */
 const CORR_MAN_H=1.12;    // his height, as a fraction of the screen
@@ -1964,7 +1964,7 @@ function corridorScene(){
    this is only the frame choice. The fight's own corner-and-dock version of the
    machine, drawUrna, went with the fight, and --urnaH with it: it existed to
    keep the on-screen Mash and Throw buttons clear of the dock. */
-const URNA=[1,2,3].map(n=>{const i=new Image();i.src=encodeURI('assets/new/urna-'+n+'.png');return i;});
+const URNA=[1,2,3].map(n=>{const i=new Image();i.src=encodeURI('assets/new/urna-'+n+'.webp');return i;});
 const URNA_FLASH=.07, URNA_AFTER=.13;   // seconds on frame 2, then on frame 3
 function urnaFrame(){
   const since=G.t-(G.lastMash??-9);
