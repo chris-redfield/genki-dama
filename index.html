@@ -291,6 +291,16 @@ button:focus-visible,input:focus-visible+span,label.ghost:focus-within{outline:3
   /* the star is what carries margin-top:auto, so he has to carry it himself here
      or there is nothing left to push him down to the sand */
   #titleFoot{margin-top:auto}
+  /* ...and he has to keep carrying it with the panel OPEN. The open state hands
+     the auto margin to the star, which is display:none at this size, so it went
+     to nothing at all: `#menu.howtoOpen #titleFoot{margin-top:0}` outranks the
+     rule above on specificity and stripped it back off, and with nothing left
+     pushing him down he landed right under the heading - the middle of the
+     screen, on top of the how-to text. Reported on a phone 2026-10-16 and
+     measured at 375x667: his box jumped 282px up the moment COMO JOGAR was
+     tapped. A real iPhone lands in this breakpoint whenever Safari's toolbars
+     are showing, which is most of the time. */
+  #menu.howtoOpen #titleFoot{margin-top:auto}
 }
 </style>
 
@@ -2237,6 +2247,19 @@ function corrUrnaNow(t){
   if(rise>0)corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
   drawSmoke();   // out of the lid, so over the machine rather than behind it
 }
+/* Each half of a strip is clipped to its OWN frame, and this is not a tidy-up.
+   A panel does not paint W wide: drawAntagonist height-fits a 1.99:1 picture, so
+   it comes out 1434px across a 1280 screen and 1329 across a 375 phone, centred
+   - which means it paints 77px, or 477px, past each side of the panel it
+   belongs to, straight over the half that is still showing the other screen.
+   The user saw it as the antagonist "bleeding into the left" on the way home,
+   and worse on a phone, where the overdraw is wider than the whole screen and
+   he covers the corridor until the slide is nearly finished. drawPlate and
+   drawCorridor overdraw the same way for the same reason.
+   The rect runs a pixel outside the frame on every side so the two halves
+   OVERLAP by a pixel at the seam rather than risk a hairline of stale canvas
+   between them - the canvas is never cleared, so a gap shows something old. */
+function panelClip(){ctx.beginPath();ctx.rect(-1,-1,W+2,H+2);ctx.clip();}
 /* The compositor. Nothing happens here at all until the trip starts, so the
    scene draws exactly as it did before this existed. During the trip the two
    screens ride the strip together and the lock pop scales the pair of them. */
@@ -2251,9 +2274,9 @@ function corridorScene(){
     const rq=roar.lock>=0?clamp(roar.lock/CORR_PUNCH,0,1):1;
     const rk=1+CORR_ANTA_KICK*lockEnv(rq);
     ctx.save();ctx.translate(W/2,H/2);ctx.scale(rk,rk);ctx.translate(-W/2,-H/2);
-    if(roar.p<1){ctx.save();ctx.translate(-roar.p*W,0);
+    if(roar.p<1){ctx.save();ctx.translate(-roar.p*W,0);panelClip();
       if(roar.home)rageWorld();else corridorWorld(t);ctx.restore();}
-    if(roar.p>0){ctx.save();ctx.translate((1-roar.p)*W,0);
+    if(roar.p>0){ctx.save();ctx.translate((1-roar.p)*W,0);panelClip();
       drawPlate(LOSER,CORR_LOSER_TOP,CORR_LOSER_SHAKE*H,G.t);ctx.restore();}
     ctx.restore();
     corrUrnaNow(t);return;
@@ -2326,9 +2349,11 @@ function corridorScene(){
     ctx.save();ctx.translate(W/2,H/2);ctx.scale(ek,ek);ctx.translate(-W/2,-H/2);
     /* Whatever we are leaving: the plate before this one in the chain, or the
        roaring screen if this is the first step off it. */
-    if(p<1){ctx.save();ctx.translate(-c.dir*p*W,0);
+    if(p<1){ctx.save();ctx.translate(-c.dir*p*W,0);panelClip();
       if(i)cutPlate(CUTS[i-1]);else rage2World();ctx.restore();}
-    ctx.save();ctx.translate(c.dir*(1-p)*W,0);cutPlate(c);ctx.restore();
+    ctx.save();ctx.translate(c.dir*(1-p)*W,0);
+    if(p<1)panelClip();            // once home it is the whole frame, and clips nothing
+    cutPlate(c);ctx.restore();
     ctx.restore();
     corrUrnaNow(t);return;
   }
@@ -2357,8 +2382,8 @@ function corridorScene(){
   const q=lock>=0?clamp(lock/CORR_PUNCH,0,1):1;
   const k=1+CORR_ANTA_KICK*lockEnv(q);
   ctx.save();ctx.translate(W/2,H/2);ctx.scale(k,k);ctx.translate(-W/2,-H/2);
-  if(p<1){ctx.save();ctx.translate(-p*W,0);corridorWorld(t);ctx.restore();}
-  if(p>0){ctx.save();ctx.translate((1-p)*W,0);drawAntagonist();ctx.restore();}
+  if(p<1){ctx.save();ctx.translate(-p*W,0);panelClip();corridorWorld(t);ctx.restore();}
+  if(p>0){ctx.save();ctx.translate((1-p)*W,0);panelClip();drawAntagonist();ctx.restore();}
   ctx.restore();
   corrUrnaNow(t);   // outside the strip AND outside the lock pop: it holds still
 }
