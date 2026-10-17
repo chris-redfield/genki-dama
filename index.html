@@ -816,6 +816,7 @@ function update(dt){
       // is still there to be pressed, so there is still something to lose
       G.corrE=Math.max(0,(G.corrE||0)-CORR_DECAY*dt);
       corrFullTick(dt);
+      corrSmokeTick(dt);
       if(CORR_TO_FIGHT&&G.pt>=corrEnd())newRun();
       break;
     case 'fullShot': if(G.pt>=3.6)toSilence(); break;
@@ -1364,6 +1365,164 @@ function drawAntagonist(){
   }
   ctx.drawImage(ANTA,x,0,w,H);
 }
+/* ---- the power-up cut, and the state it leaves behind ----
+   The last beat this scene has. Hold the ball at the NEW top - the one the
+   planet unlocked - for as long as the globe asked for, and the screen takes
+   the same lateral trip it took to the antagonist: out to him losing it, parked
+   there while it rattles, and back to a corridor that is not the one we left.
+   He is roaring, the red has stayed, the frame rumbles harder and the machine
+   has started to smoke. Nothing follows it yet, by request, so unlike the globe
+   it does not re-arm: it is where the scene stops. */
+const CORR_ROAR_SLIDE=CORR_ANTA_SLIDE;   // the same travel as the first cut
+const CORR_ROAR_HOLD=1.5;                // s parked on him
+const CORR_ROAR_TRIP=()=>CORR_ROAR_SLIDE*2+CORR_ROAR_HOLD;
+const corrRoar=()=>G.corrRoar>=0;
+const corrRage=()=>G.corrRage>=0;
+const LOSER=new Image();LOSER.src=encodeURI('assets/new/Powered-Up-loser-01.png');
+const ROAR=new Image();ROAR.src=encodeURI('assets/new/Elderly Power-Up Roar in Blue.png');
+[LOSER,ROAR].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
+/* The rumble, and the one effect here that is NOT a smooth curve. A sine reads
+   as a float and fresh noise every frame reads as video static; hand-drawn
+   shake is neither. This is noise held in STEPS - CORR_SHAKE_HZ of them a
+   second - so the frame lands somewhere, sits there for a beat and lands
+   somewhere else, which is what sells it as drawn rather than filtered. Mostly
+   vertical as asked; the horizontal is a third of that, enough to keep the pure
+   up-down from reading as a scroll. It is hashed off the step number rather
+   than drawn from Math.random, so the same frame is the same frame twice - the
+   only way a shaking screen can be compared against itself. */
+const CORR_SHAKE_HZ=22, CORR_SHAKE_X=.35;
+const CORR_LOSER_SHAKE=REDUCED?.003:.011;   // of H, parked on him...
+const CORR_RAGE_SHAKE=REDUCED?.005:.017;    // ...and a shade more once home
+const shakeNoise=k=>{const s=Math.sin(k*127.1)*43758.5453;return (s-Math.floor(s))*2-1;};
+function shakeOff(amp,t){
+  const k=Math.floor(t*CORR_SHAKE_HZ);
+  return {x:shakeNoise(k*2.07+11.3)*amp*CORR_SHAKE_X,y:shakeNoise(k*1.31)*amp};
+}
+/* These two plates are 1.38 wide to 1 tall - TALLER than the antagonist's, and
+   taller than an ordinary window - so his treatment is the wrong one here:
+   height-fitting them would leave a fifth of a 16:9 screen to fill down each
+   side, and the only honest filler, his own edge columns, would smear a sleeve
+   across it. They are cover-fitted instead and cropped top and bottom, which is
+   the axis these two have room to spare on.
+   `anchor` is the share of that vertical excess taken off the TOP, because the
+   two plates want opposite things: the roar's raised hand is in its first few
+   percent and must survive, his fists are at the foot of the loser plate and
+   must survive there. And the fit is computed against a frame `pad` bigger all
+   round, with the drawn position clamped to keep that margin on every side, so
+   the shake has somewhere to move into and can never pull the picture off its
+   own edge - the canvas is never cleared, and what is under this is the other
+   half of a slide. */
+function drawPlate(img,anchor,amp,t){
+  if(!img.complete||!img.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return;}
+  const iw=img.naturalWidth,ih=img.naturalHeight,pad=amp+1;
+  const s=Math.max((W+pad*2)/iw,(H+pad*2)/ih), w=iw*s, h=ih*s;
+  const o=amp>0?shakeOff(amp,t):{x:0,y:0};
+  ctx.drawImage(img,(W-w)/2+o.x,clamp(-(h-H)*anchor,-(h-H-pad),-pad)+o.y,w,h);
+}
+const CORR_LOSER_TOP=.30, CORR_ROAR_TOP=.06;
+/* How red the screen stays once we are home - and it cannot be laid down the way
+   the sky's red is. That one is a plain fill over a YELLOW backdrop; this plate
+   is mostly blue, and a warm translucent wash over blue goes muddy purple, which
+   is the oldest trap in this file. So the red goes on as a COLOUR blend: the
+   plate keeps its own lightness - every highlight, every ink line, the whites of
+   his cuffs - and only the hue and saturation are replaced. That is a red room
+   with him still legible in it rather than a red sheet over him. A little flat
+   red follows it, source-over, to warm the blacks the blend leaves cold. */
+const CORR_RAGE_RED=.82, CORR_RAGE_WASH=.10;
+/* Where the screen stops. The roar plate, the red over it, and nothing else:
+   no ball, no hover, no bands. The machine is not drawn here - it is the
+   compositor's, as it has been since it stopped travelling. */
+function rageWorld(){
+  drawPlate(ROAR,CORR_ROAR_TOP,CORR_RAGE_SHAKE*H,G.t);
+  ctx.save();
+  ctx.globalCompositeOperation='color';
+  ctx.globalAlpha=CORR_RAGE_RED;
+  ctx.fillStyle='#ff2812';ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  ctx.fillStyle='rgba(255,40,18,'+CORR_RAGE_WASH+')';ctx.fillRect(0,0,W,H);
+}
+/* The trip itself, in the same shape antaSlide reports: p along the strip, and
+   `lock` the seconds since it set down. `home` is the one thing the first cut
+   never needed - WHICH screen is waiting at p=0. It flips the moment the camera
+   starts back, so the corridor we came from is never seen again: the change of
+   scene happens behind the plate, which is what a cut is for. */
+function roarSlide(){
+  const a=G.corrRoar, S=CORR_ROAR_SLIDE, D=CORR_ROAR_HOLD;
+  if(!(a>=0))return null;
+  if(a<S)return {p:easeOut(a/S),lock:-1,home:0};
+  if(a<S+D)return {p:1,lock:a-S,home:0};
+  return {p:1-easeOut((a-S-D)/S),lock:-1,home:1};
+}
+/* ---- the smoke ----
+   It pours off the machine's top rim once the screen is home. Every particle is
+   stored as a FRACTION of the machine's own box rather than in pixels, so a
+   resize or a rotate carries the plume with the thing it is coming out of
+   instead of leaving it hanging in the sky. Dark, not white: the screen behind
+   it is a red one, and pale smoke on red reads as steam. */
+const CORR_SMOKE_RATE=8;      // puffs a second
+const CORR_SMOKE_LIFE=1.9;     // s each, so ~29 alive at a time
+const CORR_SMOKE_R0=.07, CORR_SMOKE_R1=.30;   // of the machine's width, new -> old
+const CORR_SMOKE_SPREAD=.13;   // of its width, where along the rim they start
+/* How far up the frame one gets. This is the number that decides whether the
+   plume reads at all: smoke is thickest where it is coming OUT, and at .34 the
+   same puffs were spread so far up the screen that the machine looked clean
+   with a haze somewhere above it. Kept low, they pile up over the lid. */
+const CORR_SMOKE_RISE=.27;
+/* Pale, and that was not the first guess. Smoke off a burning machine is dark,
+   so dark is what went in - and it disappeared, because what is behind it here
+   is his dark red suit and a red sky: dark on dark reads as a smudge or as
+   nothing at all. Pale grey carries against both, and the few places it crosses
+   a bright highlight are exactly where real smoke thins out anyway. It is also
+   why the puffs are FEW and large: at sixteen a second any colour merged into
+   one flat mass, and a plume with no gaps in it is a cloud, not smoke. Each
+   puff takes its own step down in tone so overlaps show a seam. */
+const CORR_SMOKE_A=.50, CORR_SMOKE_RGB=[236,230,223];
+const URNA_LID=1-.063;         // the art's opaque top edge, measured off urna-1
+/* The machine's planted box, as the compositor draws it. corridorUrna used to
+   work these out inline; the smoke has to agree with it exactly, so there is
+   one copy of the numbers and both read it. `top` is the real lid, not the top
+   of the rect - the art carries 6.3% of empty above the machine. */
+function urnaBox(){
+  const w=Math.min(W*(PORT?.69:.34),H*.32/URNA_AR), h=w*URNA_AR;
+  const base=H+(URNA_FILM+CORR_URNA_SINK)*h;
+  return {cx:W/2,w:w,h:h,base:base,top:base-h*URNA_LID};
+}
+function corrSmokeTick(dt){
+  const S=G.corrSmoke||(G.corrSmoke=[]);
+  for(let i=S.length-1;i>=0;i--)if((S[i].t+=dt)>=CORR_SMOKE_LIFE)S.splice(i,1);
+  if(!corrRage())return;
+  G.corrSmokeAcc=(G.corrSmokeAcc||0)+dt*CORR_SMOKE_RATE;
+  while(G.corrSmokeAcc>=1){
+    G.corrSmokeAcc-=1;
+    S.push({u:Math.random()*2-1,drift:Math.random()*2-1,r:.7+Math.random()*.6,
+            w:Math.random()*TAU,g:Math.random(),t:0});
+  }
+}
+function drawSmoke(){
+  const S=G.corrSmoke;if(!S||!S.length)return;
+  const b=urnaBox();
+  for(let i=0;i<S.length;i++){
+    const p=S[i], q=p.t/CORR_SMOKE_LIFE;
+    /* In fast, out slow: a puff that faded symmetrically would read as a lamp
+       blinking rather than as something leaving. */
+    /* Full strength almost at once and then a long fade. Easing it IN as well
+       left the first fifth of every puff too faint to see, which put a gap
+       between the plume and the lid it is supposed to be pouring out of. */
+    const a=CORR_SMOKE_A*clamp(q*14,0,1)*Math.pow(1-q,1.5);
+    if(a<=.004)continue;
+    const r=b.w*(CORR_SMOKE_R0+CORR_SMOKE_R1*q)*p.r;
+    /* It leaves fast and slows as it spreads, which is both what smoke does and
+       what keeps the puffs from coming out evenly spaced like beads on a string. */
+    const x=b.cx+p.u*b.w*CORR_SMOKE_SPREAD+Math.sin(p.w+p.t*1.6)*b.w*.06+p.drift*b.w*.26*q;
+    const y=b.top-H*CORR_SMOKE_RISE*Math.pow(q,.9)-b.h*.04;
+    const c=CORR_SMOKE_RGB.map(v=>Math.round(v-p.g*34)).join(',');
+    const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba('+c+','+a.toFixed(3)+')');
+    g.addColorStop(.78,'rgba('+c+','+(a*.95).toFixed(3)+')');
+    g.addColorStop(1,'rgba('+c+',0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+  }
+}
 function corridorLogo(t){
   if(!LOGO2.complete||!LOGO2.naturalWidth)return;
   const a=t-corrSong(CORR_VOX-CORR_LOGO_LEAD);
@@ -1491,7 +1650,28 @@ function corrFullTick(dt){
     if(G.corrGlobe>=CORR_GLOBE_TRIP()){G.corrGlobe=-1;G.corrFull=0;G.corrBack=G.pt;G.corrPlus=true;}
     return;
   }
-  if(G.corrPlus){G.corrFull=0;return;}   // the planet has already answered
+  if(corrRoar()){
+    G.corrRoar+=dt;
+    /* ...and when it sets down, that is the end of the scene's own run. The
+       flag it leaves is a timestamp rather than a true, so whatever gets built
+       on top of this has a clock to start from. */
+    if(G.corrRoar>=CORR_ROAR_TRIP()){G.corrRoar=-1;G.corrRage=G.pt;}
+    return;
+  }
+  if(corrRage())return;                  // the scene has stopped; nothing re-arms
+  /* Past the planet the same gesture means something else. Holding the ball at
+     the top no longer sends the screen up - the planet answers once a run - it
+     sends it sideways, and the top it has to be held at is the NEW one, which
+     is why the threshold is a share of the cap and not the flat .99 the first
+     hold was measured against. */
+  if(G.corrPlus){
+    G.corrFull=((G.corrE||0)>=CORR_E_MAX()*CORR_FULL_AT&&corrPlayable(G.pt))?(G.corrFull||0)+dt:0;
+    if(G.corrFull>=CORR_FULL_HOLD){
+      G.corrFull=0;G.corrRoar=0;
+      tone('sawtooth',90,38,1.7,.085);noise(1.1,.13,380);
+    }
+    return;
+  }
   G.corrFull=((G.corrE||0)>=CORR_FULL_AT&&corrPlayable(G.pt))?(G.corrFull||0)+dt:0;
   if(G.corrFull>=CORR_FULL_HOLD){
     G.corrFull=0;G.corrGlobe=0;
@@ -1513,7 +1693,7 @@ function corridorHit(i){
   tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
   if(!i)tone('square',880,440,.09,.045);
 }
-function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;G.corrRoar=-1;G.corrRage=-1;G.corrSmoke=[];G.corrSmokeAcc=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
 /* The corridor's own mash. It drives the same G.lastMash the fight's does, which
    is what makes the machine animate identically here - urnaFrame() reads that
    one clock and nothing else.
@@ -1699,14 +1879,14 @@ function corridorUrna(kick,q,rise){
   // wide art (1536x1024); a phone gives it nearly the full width, a desktop a
   // share of it, and both are capped against the height so it stays an object
   // sitting at the bottom of the sky rather than a wall across it
-  const w=Math.min(W*(PORT?.69:.34),H*.32/URNA_AR), h=w*URNA_AR;
+  const b=urnaBox(), w=b.w, h=b.h;
   const s=1+kick*kickEnv(q);
   /* rise 0 parks the whole rect one full height below the frame - further than
      it needs, since the art's own top 6% is transparent, but it costs nothing
      and leaves no chance of a sliver showing before it sets off. rise 1 is the
      planted anchor, and the kick scales about whatever point that works out to,
      so the machine's base stays put through the swing at either end. */
-  ctx.save();ctx.translate(W/2,lerp(H+h,H+(URNA_FILM+CORR_URNA_SINK)*h,rise));ctx.scale(s,s);
+  ctx.save();ctx.translate(W/2,lerp(H+h,b.base,rise));ctx.scale(s,s);
   // the press also sinks it 2px, as it does in the fight - scaled, since the
   // machine is drawn a good deal bigger here than it is on the phone dock
   ctx.drawImage(im,-w/2,-h+(f?h*.0087:0),w,h);
@@ -1770,12 +1950,30 @@ function corrUrnaNow(t){
   const rd=Math.min(CORR_URNA_RISE,hits[0]);
   const rise=easeOut(clamp((t-(hits[0]-rd))/rd,0,1));
   if(rise>0)corridorUrna(n<0?0:(n?CORR_URNA_ACCENT:CORR_URNA_KICK),q,rise);
+  drawSmoke();   // out of the lid, so over the machine rather than behind it
 }
 /* The compositor. Nothing happens here at all until the trip starts, so the
    scene draws exactly as it did before this existed. During the trip the two
    screens ride the strip together and the lock pop scales the pair of them. */
 function corridorScene(){
-  const t=G.pt, {p,lock}=antaSlide(t), fade=globeFade();
+  const t=G.pt, {p,lock}=antaSlide(t), fade=globeFade(), roar=roarSlide();
+  /* The second lateral trip, built on the first one's strip. It can only start
+     long after the antagonist is home and the planet has answered, so no two of
+     these three branches can ever want the same frame. What is different is
+     where it lets go: the screen it travels back to is a new one, and it stays
+     there. */
+  if(roar){
+    const rq=roar.lock>=0?clamp(roar.lock/CORR_PUNCH,0,1):1;
+    const rk=1+CORR_ANTA_KICK*lockEnv(rq);
+    ctx.save();ctx.translate(W/2,H/2);ctx.scale(rk,rk);ctx.translate(-W/2,-H/2);
+    if(roar.p<1){ctx.save();ctx.translate(-roar.p*W,0);
+      if(roar.home)rageWorld();else corridorWorld(t);ctx.restore();}
+    if(roar.p>0){ctx.save();ctx.translate((1-roar.p)*W,0);
+      drawPlate(LOSER,CORR_LOSER_TOP,CORR_LOSER_SHAKE*H,G.t);ctx.restore();}
+    ctx.restore();
+    corrUrnaNow(t);return;
+  }
+  if(corrRage()){rageWorld();corrUrnaNow(t);return;}
   /* The trip to the full shot owns the screen while it runs. It cannot start
      before the scripted run is over, so the lateral slide is always home by the
      time this branch can be taken and the two never share a frame. Whichever
