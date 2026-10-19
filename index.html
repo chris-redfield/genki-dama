@@ -132,8 +132,8 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
    transitioned here, so `top` lands at once in both directions. It is also out
    of flow, so placeStars still measures the real position the moment the class
    is toggled, and the swipe keeps its animation. */
-#menu.howtoOpen .star{margin-top:auto;margin-bottom:50px;position:relative;top:-30px}
-#menu.howtoOpen #titleFoot{margin-top:0}
+#menu.howtoOpen .star,#menu.secretOpen .star{margin-top:auto;margin-bottom:50px;position:relative;top:-30px}
+#menu.howtoOpen #titleFoot,#menu.secretOpen #titleFoot{margin-top:0}
 .howtoWrap{position:relative}
 #howtoBody{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);
   width:min(470px,92vw);display:flex;flex-direction:column;gap:10px;
@@ -162,6 +162,44 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
 .howto{font-family:var(--display);font-weight:400;font-size:28px;letter-spacing:.04em;margin:0;color:var(--ink)}
 .star{display:flex;justify-content:center;gap:10px;margin-top:2px;width:fit-content;margin-inline:auto}
 .star svg{display:block}
+/* ---- the secret ----
+   The four stars are the one thing on this screen that does nothing, which is
+   exactly what makes them the place to hide the studio logo.
+   It opens into the SAME SLOT the how-to opens into - hung under the heading,
+   with the stars stepping down out of the way on the shared class above - and
+   that is not only for the look. Hung under the STARS instead, which is where
+   it went first, it has to live in the gap between them and the man, and that
+   gap is measured at 30px on a 1280x633 window against the 101px the logo
+   needs: it sat across his chest. The how-to's slot is the one place on this
+   screen already proven to hold a panel at every size, and the panel it holds
+   is taller than this one. */
+#menu .star{cursor:pointer}
+/* 10% off the width and a little further down, asked for 2026-10-19. Both
+   terms scale together so the logo keeps its size relative to the column on
+   every window: 430 -> 387 and 86vw -> 77.4vw. The drop has a ceiling that is
+   not taste - at 1280x633 the slot between the heading and the man is 113px
+   and the logo now takes 91 of it, so 30px is nearly all the room there is. */
+#saborosaBody{position:absolute;top:calc(100% + 30px);left:50%;transform:translateX(-50%);
+  width:min(387px,77.4vw);cursor:pointer;isolation:isolate}
+#saborosaBody img{width:100%;height:auto;display:block;filter:drop-shadow(3px 3px 0 var(--ink))}
+/* The red, asked for 2026-10-19. MULTIPLY and not the colour blend the canvas
+   scenes use, and that was decided by rendering all four candidates rather
+   than by argument. `color` is the principled one - it keeps lightness and
+   only moves hue - but every letter in this logo is LIGHT, so keeping their
+   lightness keeps them pale: the result is a pink logo, not a red one.
+   Multiplied by the menu's own red, the white letters land exactly on it, the
+   tan and the yellow go to deeper reds under it, and the ink outlines come
+   through untouched because anything times black is black. `hue-rotate` was
+   the fourth candidate and the worst: it rotates what is already there, so
+   five letter colours become five unrelated reds.
+   The mask is what keeps the red on the ink and off the page - the layer is
+   the whole panel box, and without it the multiply would darken the sky behind
+   the transparent 36% of the file into a red rectangle. isolation:isolate on
+   the parent stops the blend reaching past the panel for the same reason. */
+#saborosaBody::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:var(--red);mix-blend-mode:multiply;
+  -webkit-mask:url('assets/new/saborosa-logo.webp') center/100% 100% no-repeat;
+          mask:url('assets/new/saborosa-logo.webp') center/100% 100% no-repeat}
 /* #titleFoot is the patch of sand he stands on: it holds his height, and it is
    what the layout moves around. #titleSpr climbs out of it and the dust stays
    in it, both anchored to the same bottom edge - so the dust is at his feet by
@@ -282,7 +320,7 @@ button:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
      measured at 375x667: his box jumped 282px up the moment COMO JOGAR was
      tapped. A real iPhone lands in this breakpoint whenever Safari's toolbars
      are showing, which is most of the time. */
-  #menu.howtoOpen #titleFoot{margin-top:auto}
+  #menu.howtoOpen #titleFoot,#menu.secretOpen #titleFoot{margin-top:auto}
 }
 </style>
 
@@ -295,6 +333,7 @@ button:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
       <div class="row"><button class="primary" id="bStart">COMEÇAR</button></div>
       <div class="howtoWrap">
         <button class="howto" id="bHowto" aria-expanded="false" aria-controls="howtoBody">COMO JOGAR</button>
+        <div id="saborosaBody" hidden><img src="assets/new/saborosa-logo.webp" alt="Saborosa"></div>
         <div id="howtoBody" hidden>
           <p>APERTE a tecla verde para confirmar <span class="key">(espaço)</span>, vote no 13 !!!<br>Aperte no ritmo para aumentar o entretenimento !!!</p>
         </div>
@@ -506,8 +545,10 @@ const howtoBtn=$('bHowto');
 function placeStars(){
   const star=document.querySelector('#menu .star');
   if(!star)return;
-  if(howtoBtn.getAttribute('aria-expanded')!=='true'){star.style.visibility='';return;}
-  const panel=$('howtoBody').getBoundingClientRect(), sr=star.getBoundingClientRect();
+  // whichever panel is out - they share the slot, so there is never more than one
+  const open=!$('howtoBody').hidden?$('howtoBody'):(!$('saborosaBody').hidden?$('saborosaBody'):null);
+  if(!open){star.style.visibility='';return;}
+  const panel=open.getBoundingClientRect(), sr=star.getBoundingClientRect();
   star.style.visibility=sr.top<panel.bottom+6?'hidden':'';
 }
 howtoBtn.addEventListener('click',()=>{
@@ -515,9 +556,51 @@ howtoBtn.addEventListener('click',()=>{
   howtoBtn.setAttribute('aria-expanded',open?'false':'true');
   $('howtoBody').hidden=open;
   $('menu').classList.toggle('howtoOpen',!open);
+  closeSecret();   // the two share one slot, so only ever one of them is out
   placeStars();
 });
-addEventListener('resize',placeStars);
+/* ---- the secret ----
+   Click the stars and the studio logo appears under them, on the same toggle
+   the how-to runs on. Pointer only, and deliberately NOT focusable: the row is
+   aria-hidden decoration, so putting it in the tab order would both announce
+   the secret and walk into the keydown handler above, where any key pressed on
+   the menu starts the run.
+   Two consequences worth knowing. The row is display:none under
+   `(max-height:700px) and (max-width:900px)`, so the secret is not reachable
+   on a short or sideways phone - it is there on an ordinary portrait phone,
+   which clears that query on height. And placeStars() hides the row whenever
+   the open how-to panel reaches it, which makes the stars unclickable in that
+   state: no conflict to resolve, the secret is simply only open to a tidy
+   screen. */
+function closeSecret(){$('saborosaBody').hidden=true;$('menu').classList.remove('secretOpen');}
+function toggleSecret(){
+  const body=$('saborosaBody');
+  if(!body.hidden){closeSecret();placeStars();return;}
+  /* Closing the how-to FIRST, and the order is the whole of it: that toggle
+     calls closeSecret as part of its own one-at-a-time rule, so opening this
+     before closing that put the logo up and took it straight back down. */
+  if(howtoBtn.getAttribute('aria-expanded')==='true')howtoBtn.click();
+  body.hidden=false;$('menu').classList.add('secretOpen');
+  placeStars();
+  // a click is a gesture, so this is a legal place to wake the audio
+  audioInit();tone('square',760,1180,.11,.05);tone('square',1140,1520,.09,.035,.06);
+}
+const starRow=document.querySelector('#menu .star');
+if(starRow)starRow.addEventListener('click',toggleSecret);
+/* ...and the logo closes itself. The stars are the way in, but placeStars can
+   take them off the screen when a panel reaches them, and a secret you cannot
+   shut is a trap rather than a joke. */
+$('saborosaBody').addEventListener('click',toggleSecret);
+/* The star row is display:none on a short or sideways window, so the way back
+   INTO the secret disappears at that size - and a panel left open across a
+   rotate would sit on the man with its own handle gone. Measured at 844x303:
+   101px of overlap. So the secret does not survive losing its own door.
+   offsetParent is null exactly when the row is display:none, which is the one
+   state this has to catch. */
+addEventListener('resize',()=>{
+  if(starRow&&!starRow.offsetParent&&!$('saborosaBody').hidden)closeSecret();
+  placeStars();
+});
 $('bStart').addEventListener('click',beginStart);
 
 
@@ -653,8 +736,11 @@ function drawPlanet(cx,cy,R){
   ctx.restore();circ(cx,cy,R);inkStroke(Math.max(2.5,R*.012));
 }
 /* The orb's colours, lifted out so the same ball can be charged in two places.
-   ORB_COOL is exactly what drawSphere had hard-wired, so phase 1 is untouched;
-   the corridor charges the hot one. */
+   ORB_COOL is exactly what drawSphere had hard-wired. Nothing reaches it any
+   more - both trips up went red on 2026-10-19 - so it is no longer a palette
+   in use but the way BACK to a blue ball: put it in either shot's `pal` and
+   swap that shot's FEED_HOT for FEED_COOL below. Kept for that reason, and
+   because drawSphere still needs a default. */
 const ORB_COOL={g1:'rgba(120,205,255,.22)',g2:'rgba(150,220,255,.4)',core:ORB_B,lit:ORB_L,
                 hi:'#fff',hiR:.54,ring:'rgba(70,165,235,.55)'};
 /* The hot one is not just the cool one recoloured.
@@ -678,6 +764,12 @@ const ORB_HOT ={g1:null, g2:null, core:'#e5240b',lit:KI,
      the twinkle's long thin spikes read bigger than the solid shape. */
   sparkVar:.15,
   spark:(x,y,s,rot)=>star5(x,y,s*1.3,rot,'#e4002b')};
+/* The energy feeding the ball: a wide soft glow with a bright hairline drawn
+   down the middle of it. Named and paired because both trips up use the same
+   one now, and because swapping a shot's FEED_HOT for FEED_COOL - alongside
+   its `pal` - is the whole of putting that shot back to blue. */
+const FEED_COOL={glow:'rgba(110,195,255,.55)', core:'rgba(255,255,255,.9)'};
+const FEED_HOT ={glow:'rgba(255,120,36,.55)',  core:'rgba(255,236,198,.92)'};
 function drawSphere(cx,cy,r,t,alpha=1,P=ORB_COOL){
   if(r<1)return;
   ctx.save();ctx.globalAlpha=alpha;
@@ -706,8 +798,12 @@ function drawSphere(cx,cy,r,t,alpha=1,P=ORB_COOL){
    to, so the two callers share one body. Adding a field means adding it to
    OPEN_1 with the value this function used to have written in - that is the
    whole contract. */
-const OPEN_1={dur:3.6, r0:0, r1:.045, threads:null, pal:null,
-              glow:'rgba(110,195,255,.55)', core:'rgba(255,255,255,.9)'};
+/* Red since 2026-10-19, by request - "the genki dama is blue, can you switch
+   the colors to red, just like the second planetary animation". Only the three
+   colour fields moved: `dur`, `r0`, `r1` and the 90-thread default are the
+   first trip's own and are untouched, so this is the same shot at the same
+   size and the same pace, lit the way the second one is. */
+const OPEN_1={dur:3.6, r0:0, r1:.045, threads:null, pal:ORB_HOT, ...FEED_HOT};
 function opening(pt,o){
   const O=o||OPEN_1;
   const p=clamp((pt??G.pt)/O.dur,0,1);
@@ -1280,14 +1376,17 @@ const CORR_RALLY_SAT=1;
    grey frame between them; run them together and the midpoint is the mauve -
    rendered side by side, both faults are plainly there and no amount of
    reshaping the curves removes them, because they are the two ends of the same
-   trade. What does remove them is giving neither one time to read: at .08 and
-   .08 the whole thing is about a third of a second, the half-grey moment lasts
-   around .14s, and it goes past as a wash rather than as a state.
-   Shipped long (.30/.30) on 2026-10-19 and the user saw exactly that: "it
-   looks like it goes to black and white and then goes to blue". */
+   trade. What does remove them is giving neither one time to read: the
+   half-grey moment has to go past as a wash rather than as a state.
+   Retimed twice on 2026-10-19, so both ends of the window are known. At
+   .30/.30 the grey lasted about half a second and the user saw it - "it looks
+   like it goes to black and white and then goes to blue". At .08/.08 that was
+   gone, but the whole handover came in at 0.41s and read as a snap - "it is
+   good but too fast". These are those numbers plus 20%: the handover runs
+   0.49s and the half-grey about .17s, which is still a wash. */
 const CORR_RALLY_HOLD=.26;      // share of the pan it stays FULLY red for...
-const CORR_RALLY_DRAIN=.08;     // ...then the share it takes to lose the colour...
-const CORR_RALLY_RELEASE=.08;   // ...and the share the blend then takes to let go
+const CORR_RALLY_DRAIN=.096;    // ...then the share it takes to lose the colour...
+const CORR_RALLY_RELEASE=.096;  // ...and the share the blend then takes to let go
 /* How far INTO the drain the blend starts letting go. Nought is the strict
    reading of the paragraph above - no overlap at all - and it is wrong in a
    way only rendering shows: with the fill at zero saturation and the blend
@@ -1402,7 +1501,20 @@ function burst13(){
     a.push({ang:rand(0,TAU),sp:rand(.3,1),r:rand(.45,1),spin:rand(-6,6),rot:rand(0,TAU),life:rand(.75,1.35)});
   return a;
 }
-function star5(x,y,r,rot){
+/* frag5 and NOT star5, which is a five-point star this file already had - see
+   the drawing helpers, where it takes its fill and its outline as arguments.
+   Declaring a second `function star5` here did not sit beside that one, it
+   REPLACED it: both are top-level declarations in the same IIFE, so the later
+   wins for every caller including the earlier ones. The genki dama's sparks
+   call `star5(x,y,s,rot,'#e4002b')`, and against this signature the red was
+   just an ignored fifth argument - they drew in whatever fillStyle the ball
+   had left on the context, which is its yellow core. Reported 2026-10-19 as
+   the orbiting stars turning yellow in both the planet shot and the charging
+   screen, and the cause was entirely in the name.
+   Kept as its own function rather than folded into star5 so the ending's
+   fragments are untouched: they want a wider waist and a heavier ink edge than
+   the mark does. */
+function frag5(x,y,r,rot){
   ctx.beginPath();
   for(let i=0;i<10;i++){
     const t=rot+i*Math.PI/5, rr=i%2?r*CORR_13_FRAG_IN:r;
@@ -1424,7 +1536,7 @@ function frags13(b,cx,cy,fade){
     // out fast and slowing: what a thrown piece does once nothing is pushing it
     const d=CORR_13_SPREAD*H*p.sp*easeOut(q);
     ctx.globalAlpha=fade*(1-q*q);
-    star5(cx+Math.cos(p.ang)*d,cy+Math.sin(p.ang)*d,CORR_13_FRAG_R*H*p.r*(1-.35*q),p.rot+p.spin*b);
+    frag5(cx+Math.cos(p.ang)*d,cy+Math.sin(p.ang)*d,CORR_13_FRAG_R*H*p.r*(1-.35*q),p.rot+p.spin*b);
   }
   ctx.globalAlpha=1;
 }
@@ -1556,17 +1668,15 @@ const cutPlate=c=>{
    - the ball starts where the first trip left it (`r0` = the other shot's `r1`)
      and goes on from there, so it reads as the one that is already up there
      rather than a new one being lit;
-   - `THREADS2` is more than twice the energy, and it is RED, because the ball
-     it is feeding is red now (ORB_HOT, the corridor's own palette). Put
-     OPEN_1's two colours back in `glow`/`core` for blue feed lines into a red
-     ball, which was the other way to read the request.
+   - `THREADS2` is more than twice the energy. It is red, as the first trip is
+     now too, so what separates the two shots is no longer colour at all: this
+     one is bigger, denser and slower, and it starts where the other finished.
    And unlike the first trip there is no way home: it fades up, gathers, and
    holds there. More comes after it, by the user's own account - this is where
    the scene waits. */
 const CORR_RAGE_HOLD=3;        // s on the roaring screen before it goes up
 const THREADS2=Array.from({length:200},()=>({a:Math.random()*TAU,r:Math.sqrt(Math.random())*.95,d:Math.random()*.55}));
-const OPEN_2={dur:4.4, r0:OPEN_1.r1, r1:.082, threads:THREADS2, pal:ORB_HOT,
-              glow:'rgba(255,120,36,.55)', core:'rgba(255,236,198,.92)'};
+const OPEN_2={dur:4.4, r0:OPEN_1.r1, r1:.082, threads:THREADS2, pal:ORB_HOT, ...FEED_HOT};
 const corrGlobe2=()=>G.corrGlobe2>=0;
 /* How long the shot is up: its own gather, plus a beat of holding the finished
    ball before the screen leaves it. */
