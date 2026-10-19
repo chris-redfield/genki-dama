@@ -1258,28 +1258,56 @@ const CORR_BLOW_TOP=()=>CORR_BLOW_IN+CORR_BLOW_HOLD;
    at a part-way alpha and every pixel sits halfway between the red and the
    sky's blue, which is mauve. Rendered, the midpoint of that fade is a flat
    dull lavender and the shot dies in it.
-   So nothing ever runs part-way between the two. The SATURATION drains first,
-   fast, which walks the frame from furnace red to a warm neutral without the
-   blend alpha moving at all - no mix, no mauve. Only then does the blend let
-   go, and by that point what it is releasing is near-grey, so the world's own
-   colours simply come back up through it: the sky, the grass, the red of the
-   crowd. Two curves, and the only thing that matters is that the second lags
-   the first. */
-const CORR_RALLY_SAT=CORR_RAGE_SAT;   // where it starts - the first red screen's number
-const CORR_RALLY_DRAIN=1.6;           // the saturation falls on this...
-const CORR_RALLY_RELEASE=2.6;         // ...and the blend lets go on this, later
+   So nothing ever runs part-way between the two, and it is written as three
+   windows that do not overlap rather than as two curves that happen not to:
+   the screen STAYS fully red, then the SATURATION drains out of it with the
+   blend alpha untouched - no mix, no mauve - and only once it is at zero does
+   the blend let go. What it releases by then is near-grey, so the world's own
+   colours come back up through it: the sky, the grass, the red of the crowd.
+   Written this way the no-purple property is provable instead of tuned - the
+   drain window ends exactly where the release window starts, so the blend is
+   never part-way while the fill still has a hue. */
+/* The top of the scale, and the only screen in the game that sits there. It
+   was CORR_RAGE_SAT (.62) and shipped that way on 2026-10-19; the user's note
+   was that the red "is kinda desaturated, we want it SATURATED". Two things
+   were doing it: the start was the FIRST red screen's number, on the last red
+   screen there is, and the drain began at u=0 so it was already washing out a
+   quarter of the way down. Both are fixed below - and the climb now ends where
+   it was always heading: .62 at the roar, .74, .80 down the tail, 1 here. */
+const CORR_RALLY_SAT=1;
+const CORR_RALLY_HOLD=.34;      // share of the pan it stays FULLY red for...
+const CORR_RALLY_DRAIN=.30;     // ...then the share it takes to lose the colour...
+const CORR_RALLY_RELEASE=.30;   // ...and the share the blend then takes to let go
+/* How far INTO the drain the blend starts letting go. Nought is the strict
+   reading of the paragraph above - no overlap at all - and it is wrong in a
+   way only rendering shows: with the fill at zero saturation and the blend
+   still at full, the frame is a completely grey photograph for about half a
+   second. No purple, but a monochrome hole in the middle of the ending that
+   nobody asked for.
+   What makes the overlap safe is that the purple never came from overlapping,
+   it came from overlapping while the fill still had a HUE. Half the drain in,
+   the fill is down to .04 saturation, so what the blend is now easing off is a
+   near-grey, and the two can run together without ever mixing a red with a
+   blue. Measured across the handover at .5 there is no frame of either fault.
+   Push it to 1 and the release begins while the fill is still properly red,
+   which is the mauve again. */
+const CORR_RALLY_OVERLAP=.5;
 function rallyTint(u){
-  const alp=CORR_RAGE_RED*(1-Math.pow(u,CORR_RALLY_RELEASE));
+  const sat=CORR_RALLY_SAT*(1-ease(clamp((u-CORR_RALLY_HOLD)/CORR_RALLY_DRAIN,0,1)));
+  const let_=CORR_RALLY_HOLD+CORR_RALLY_DRAIN*(1-CORR_RALLY_OVERLAP);
+  const alp=CORR_RAGE_RED*(1-ease(clamp((u-let_)/CORR_RALLY_RELEASE,0,1)));
   if(alp<=0)return;
   ctx.save();
   ctx.globalCompositeOperation='color';
   ctx.globalAlpha=alp;
-  ctx.fillStyle=rageHue(CORR_RALLY_SAT*Math.pow(1-u,CORR_RALLY_DRAIN));
+  ctx.fillStyle=rageHue(sat);
   ctx.fillRect(0,0,W,H);
   ctx.restore();
-  // the warm flat red under it goes on the plain linear way; it has no hue to
-  // get wrong, and it is what keeps the blacks from reading cold on the way out
-  const wash=CORR_RAGE_WASH*(1-u);
+  /* The warm flat red under it goes on the plain linear way - it has no hue to
+     get wrong - and it leaves on the SATURATION's schedule rather than on the
+     pan's, so the last of the warmth goes with the red instead of trailing it
+     into the blue. */
+  const wash=CORR_RAGE_WASH*sat/CORR_RALLY_SAT;
   if(wash>0){ctx.fillStyle='rgba(255,40,18,'+wash.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
 }
 /* The crowd, and the camera walking down it. `a` is seconds since the white
