@@ -1590,18 +1590,26 @@ function drawCorridor(pan){
    sliceStrip needs getImageData, so like every other sheet here he is simply
    absent when the page is opened over file:// instead of being served - the
    scene plays without him rather than breaking. */
-let CORR_MAN=null;
-(function(){const i=new Image();
-  i.onload=()=>{try{CORR_MAN=sliceStrip(i)[0];}catch(e){}};
-  i.src=encodeURI('assets/new/Low-angle levitating sprite trio.webp');})();
-/* ...and the same figure again, shouting, for when the ball outgrows what he
-   could hold before. Same three-scale green sheet, same biggest slice: 657x754
-   against the other's 414x763, so he is drawn at the SAME height and only the
-   arms and the stance are wider. */
-let CORR_SHOUT=null;
-(function(){const i=new Image();
-  i.onload=()=>{try{CORR_SHOUT=sliceStrip(i)[0];}catch(e){}};
-  i.src=encodeURI('assets/new/Three Shouting Bearded Men in Blue Suits.webp');})();
+/* The corridor's hero: triumphant while he gathers, roaring once the ball
+   outgrows what he could hold before. Both are CUT OUT AHEAD OF TIME - single
+   transparent WebPs - rather than sliced from their green trio sheets at load,
+   and that is not a tidy-up. sliceStrip splits a sheet by runs of columns, and
+   the roaring trio's middle figure TOUCHES the left one: their shoes overlap,
+   so the two share one unbroken run of columns and no column split can ever
+   separate them. It threw 'need 3 poses', which the loader's catch() would
+   have swallowed, leaving CORR_SHOUT null and the roar pose silently absent.
+   Cutting them offline also drops the three-figure sheets (we only ever used
+   the biggest) and takes the pair from 229 KB to 137 KB, and there is no
+   8%-of-sheet-width floor left to fall through. The source art is
+   'Triumphant Threefold Anime Elder' and 'Triple Roaring Anime Gentleman
+   Cutouts'; the cut keys the green exactly as sliceStrip does, so what is
+   drawn is what sliceStrip would have produced - verified by slicing the
+   triumph sheet both ways and getting the same 504x872.
+   They are drawn at the SAME height (see corridorMan), the roar being only
+   wider in arms and stance, which is the relationship the previous pair had. */
+const CORR_MAN=new Image();   CORR_MAN.src='assets/new/corr-hero-triumph.webp';
+const CORR_SHOUT=new Image(); CORR_SHOUT.src='assets/new/corr-hero-roar.webp';
+[CORR_MAN,CORR_SHOUT].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 /* He is taller than the frame on purpose - he towers, and his feet run off the
    bottom where the urna is covering them anyway. */
 const CORR_MAN_H=1.12;    // his height, as a fraction of the screen
@@ -1706,7 +1714,7 @@ const CORR_MAN_HOVER=.018, CORR_MAN_HOVER_W=3.0, CORR_MAN_HOVER_IN=.35;
    travels further - he reads as overtaking it, which is what being behind it and
    still climbing should look like. */
 function corridorMan(rise,kick,q,bob){
-  if(!CORR_MAN)return;
+  if(!CORR_MAN.complete||!CORR_MAN.naturalWidth)return;
   /* He is tall and narrow, so height leads and the cap is the guard rail: left
      at a fixed fraction of the width it would quietly refuse a resize on a phone,
      where height is the plentiful axis, and he would come out short of what was
@@ -1717,7 +1725,8 @@ function corridorMan(rise,kick,q,bob){
      would appear to shrink back, which is the one thing the swap must not do.
      The arms run off the sides there instead, as his head already does. */
   const e=G.corrE||0;
-  const img=(G.corrPlus&&CORR_SHOUT&&e>=CORR_E_MAX()*CORR_SHOUT_AT)?CORR_SHOUT:CORR_MAN;
+  // an Image is always truthy, so "loaded" has to be a pixel test, not a null check
+  const img=(G.corrPlus&&CORR_SHOUT.naturalWidth&&e>=CORR_E_MAX()*CORR_SHOUT_AT)?CORR_SHOUT:CORR_MAN;
   const h=Math.min(H*CORR_MAN_H,W*CORR_MAN_W*CORR_MAN.height/CORR_MAN.width),
         w=h*img.width/img.height;
   // rise 0 parks him wholly under the frame, rise 1 is his resting centre; the
