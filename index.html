@@ -1011,7 +1011,12 @@ function shakeOff(amp,t){
    own edge - the canvas is never cleared, and what is under this is the other
    half of a slide. */
 function drawPlate(img,anchor,amp,t,ax){
-  if(!img.complete||!img.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return;}
+  /* It returns the frame rather than nothing even here, because every caller
+     that tints goes through ragePlate and reads `.x` off this. Returning
+     undefined on the one frame a plate has not decoded on yet would take the
+     scene down, and the placeholder it just painted is the whole frame, so the
+     frame is the honest answer: the tint lands on exactly what was drawn. */
+  if(!img.complete||!img.naturalWidth){ctx.fillStyle=INK;ctx.fillRect(0,0,W,H);return {x:0,y:0,w:W,h:H};}
   const iw=img.naturalWidth,ih=img.naturalHeight,pad=amp+1;
   const s=Math.max((W+pad*2)/iw,(H+pad*2)/ih), w=iw*s, h=ih*s;
   const o=amp>0?shakeOff(amp,t):{x:0,y:0};
@@ -1047,11 +1052,21 @@ const CORR_LOSER_TOP=.30, CORR_ROAR_TOP=.06;
    it as a number from 0 to 1 instead of a hex nobody can rank. Lightness is
    ignored by a colour blend, so there is only ever one number to pick. */
 const CORR_RAGE_SAT=.62;
+/* The plate the trip goes OUT to was the last screen in the finish still drawn
+   raw - blue suit, blue sky, yellow aura - while everything from the moment it
+   comes home is on the scale. Put on it 2026-10-19 by request. It sits at the
+   same number as the screen the trip comes back to, so the round trip reads as
+   one beat at one temperature and the climb starts after it: .62 here and at
+   the roar, .74 at RAGE2, .80 down the tail chain. Only the colour changed -
+   `.5` is the ax drawPlate was already using when it was passed none. */
+const CORR_LOSER_SAT=CORR_RAGE_SAT;
 const rageHue=sat=>'hsl(6,'+Math.round(clamp(sat,0,1)*100)+'%,50%)';
 const CORR_RAGE_RED=.92, CORR_RAGE_WASH=.05;
 /* A red screen: the plate, rumbling, with the colour blend over it and nothing
-   else - no ball, no hover, no bands. The machine is not drawn here, it is the
-   compositor's, as it has been since it stopped travelling.
+   else - no ball, no hover, and no band but the one that lands on the first of
+   them, which is drawn after the tint so the red never touches it (rageBand).
+   The machine is not drawn here, it is the compositor's, as it has been since
+   it stopped travelling.
    There are two of these now and there will be more, so every screen is the
    same four numbers: which plate, how it is framed, how hard it shakes and
    where it sits on the red scale. Each one up is a step up on all of them. */
@@ -1076,13 +1091,15 @@ function rageTint(r,sat){
 function ragePlate(img,top,ax,shake,sat){
   rageTint(drawPlate(img,top,shake*H,G.t,ax),sat);
 }
-function rageWorld(){ragePlate(ROAR,CORR_ROAR_TOP,.5,CORR_RAGE_SHAKE,CORR_RAGE_SAT);}
+function rageWorld(){ragePlate(ROAR,CORR_ROAR_TOP,.5,CORR_RAGE_SHAKE,CORR_RAGE_SAT);rageBand();}
 /* ...and the one the planet drops us back onto. Redder, and shaking harder:
    the ask each time is "the same, but more", so these are the first screen's
    numbers stepped up rather than values picked afresh. */
 const RAGE2=new Image();RAGE2.src=encodeURI('assets/new/Power-Up Roar Under Energy Streaks.webp');
 const LOSER2=new Image();LOSER2.src=encodeURI('assets/new/powered-up-loser-02.webp');
-[RAGE2,LOSER2].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
+// LOSER2's lettering - a field on its line in CUTS, not a screen of its own
+const QUASE=new Image();QUASE.src=encodeURI('assets/new/QUASE LÁ! Brushstroke Logo.webp');
+[RAGE2,LOSER2,QUASE].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 const CORR_RAGE2_SAT=.74;                      // against .62
 const CORR_RAGE2_SHAKE=REDUCED?.007:.024;      // against .017
 const CORR_RAGE2_TOP=.5, CORR_RAGE2_AX=.73;    // 16:9, so TOP only bites on a tall window
@@ -1172,8 +1189,11 @@ const SCREAM=new Image();SCREAM.src=encodeURI('assets/new/Elderly Power-Up Screa
 const ATTACK=new Image();ATTACK.src=encodeURI('assets/new/Furious Elder’s Energy Attack Pose.webp');
 [SCREAM,ATTACK].forEach(i=>i.addEventListener('load',()=>{i.decode&&i.decode().catch(()=>{});}));
 const CUTS=[
-  // out to him, the way every enemy cut in this scene has gone: rightward
-  {img:LOSER2,top:.5, ax:.60,shake:REDUCED?.005:.016,sat:.80,hold:CORR_CUT_HOLD,dir: 1},
+  /* Out to him, the way every enemy cut in this scene has gone: rightward.
+     `band` is the optional eighth field: lettering that punches in once this
+     plate has landed, the same gesture as the corridor's own bands. Any line
+     here can take one. */
+  {img:LOSER2,top:.5, ax:.60,shake:REDUCED?.005:.016,sat:.80,hold:CORR_CUT_HOLD,dir: 1,band:QUASE},
   // ...and then the camera turns round and walks back the other way, twice
   {img:SCREAM,top:.5, ax:.73,shake:CORR_CUT_SHAKE,  sat:.80,hold:CORR_CUT_HOLD,dir:-1},
   /* The attack pose is 1.33:1 - the tallest plate in the scene - so it is the
@@ -1233,7 +1253,24 @@ function rallyWorld(a){
   const u=ease(clamp((a-CORR_PAN_WAIT)/CORR_PAN_DUR,0,1));
   ctx.drawImage(RALLY,(W-w)/2,-(h-H)*u,w,h);
 }
-const cutPlate=c=>ragePlate(c.img,c.top,c.ax,c.shake,c.sat);
+/* A tail screen that carries lettering says so with a `band` field, and that
+   is the whole of it - no second branch and no second clock, the same way a
+   new screen is a line in CUTS rather than another state. The clock is the
+   chain's own: `G.corrEnd` less what the plate cost to arrive, so it reads as
+   seconds since this one set down.
+   The band is drawn only for the plate the chain is ON. The one sliding OUT
+   goes through this same function, and `G.corrEnd` has already restarted under
+   it, so without the identity test its lettering would punch in again on the
+   way off the screen.
+   It waits a beat because a cut DOES pop as it lands (lockEnv, in the
+   compositor): CORR_PUNCH is .42 and the beat is .46, so the band's own swing
+   starts on a frame the plate has finished settling on, never during it. */
+const CORR_CUT_BAND_WAIT=CORR_BEAT_GAP, CORR_CUT_BAND_HOLD=1.15;
+const cutPlate=c=>{
+  ragePlate(c.img,c.top,c.ax,c.shake,c.sat);
+  if(c.band&&c===CUTS[G.corrCut])
+    corridorBand(c.band,G.corrEnd-cutIn(c)-CORR_CUT_BAND_WAIT,CORR_CUT_BAND_HOLD,CORR_BAND_PAD);
+};
 /* ---- the last trip up ----
    The rage screen holds, and then the screen goes up to the planet one more
    time. It is the SAME shot - opening(), the whole globe with the energy
@@ -1393,18 +1430,26 @@ const CTA=new Image();CTA.src=encodeURI('assets/new/Aperta Verde e Confirma Logo
 CTA.addEventListener('load',()=>{CTA.decode&&CTA.decode().catch(()=>{});});
 // the slide sets down at the end of its round trip; the text follows one beat later
 const corrCtaIn=()=>corrAntaIn()+CORR_ANTA_TRIP()+CORR_CTA_WAIT;
-/* Both instruction bands are the same gesture with different words - punch in
-   on the damped swing, hold, fade - and the art is cut to the same 3:1, so they
-   are drawn by one function and share every number above. `a` is seconds since
-   the band was asked for; before 0 and after the fade there is nothing. */
-function corridorBand(img,a,hold){
+/* The instruction bands are the same gesture with different words - punch in
+   on the damped swing, hold, fade - and the art is all cut to the same 3:1, so
+   they are drawn by one function and share every number above. `a` is seconds
+   since the band was asked for; before 0 and after the fade there is nothing.
+   The one thing they do not share is where they sit: see `pad` below. */
+function corridorBand(img,a,hold,pad){
   if(!img.complete||!img.naturalWidth)return;
   if(a<0||a>hold+CORR_CTA_OUT)return;
   const ar=img.naturalWidth/img.naturalHeight;
   const w=Math.min(W*CORR_CTA_W(),H*CORR_CTA_HMAX*ar), h=w/ar;
   const k=1+CORR_CTA_KICK*kickEnv(clamp(a/CORR_PUNCH,0,1));
   ctx.globalAlpha=a<=hold?1:1-(a-hold)/CORR_CTA_OUT;
-  ctx.save();ctx.translate(W/2,H*CORR_CTA_MID);ctx.scale(k,k);
+  /* Two ways to place it. Left out, it sits at the fixed height the corridor's
+     own two bands take. Given a `pad`, it hangs that far below the TOP of the
+     frame instead - which is what a band over a cover-fitted plate needs, and
+     why CORR_BAND_PAD exists. The hung one is measured AT FULL KICK: the
+     entrance overshoots by CORR_CTA_KICK, and a band this wide is tall enough
+     that the overshoot alone would push its first frame off the edge. */
+  const y=pad==null?H*CORR_CTA_MID:H*pad+(1+CORR_CTA_KICK)*h/2;
+  ctx.save();ctx.translate(W/2,y);ctx.scale(k,k);
   ctx.drawImage(img,-w/2,-h/2,w,h);
   ctx.restore();ctx.globalAlpha=1;
 }
@@ -1420,6 +1465,39 @@ const CORR_NP_WAIT=0, CORR_NP_HOLD=1.15;
 const NOPARE=new Image();NOPARE.src=encodeURI('assets/new/Não Pare de Apertar Confirma!.webp');
 NOPARE.addEventListener('load',()=>{NOPARE.decode&&NOPARE.decode().catch(()=>{});});
 function corridorBack(t){corridorBand(NOPARE,t-(G.corrBack??-9)-CORR_NP_WAIT,CORR_NP_HOLD);}
+/* ---- and the one that lands on the roaring screen ----
+   The ball is past full, the screen has gone sideways to the loser and come
+   back on him mid-roar: don't stop NOW. Same art family as the band above and
+   the same 3:1 cut, so it is that gesture once more - what is different is the
+   screen underneath, and that is all its own numbers are about.
+   G.corrRage is the frame the lateral trip set down, so the clock starts there.
+   Coming home has no pop of its own - the slide spends its kick on the far end
+   of the trip, not on the return - so this punch is the only thing that lands,
+   and it waits one of the song's beats so that it reads as its own beat rather
+   than as the tail of the slide. */
+const CORR_AGORA_WAIT=CORR_BEAT_GAP, CORR_AGORA_HOLD=1.15;
+/* How far under the top edge a band over a PLATE hangs - this one's and every
+   one after it, which is why it is not named for the screen.
+   The corridor's own bands sit at a fixed .54 because that screen is drawn TO
+   the frame, so the gap between the ball and the machine is in the same place
+   on every window. A plate is cover-fitted instead (see drawPlate): a 16:9
+   window gets the whole picture, a phone a tall slice of its middle, so his
+   head is somewhere different on each while the red streaks ABOVE it are in
+   the same place on both. Hung from the top the band lands in those streaks
+   either way - off the face on a desktop, off the brow in portrait. .011 is
+   what leaves the kicked band about 8px inside the edge on both, which is as
+   low as it can go before the overshoot clips. */
+const CORR_BAND_PAD=.011;
+const AGORA=new Image();AGORA.src=encodeURI('assets/new/Não Pare Agora! Brush Logo.webp');
+AGORA.addEventListener('load',()=>{AGORA.decode&&AGORA.decode().catch(()=>{});});
+/* rageWorld draws this, not the compositor, because the lettering belongs to
+   that screen rather than to the frame: the roaring screen comes up in three
+   different branches - sliding in, held, and going under the black on the way
+   to the planet - and one call inside the screen covers all three instead of
+   three calls that have to be kept in step. The one place it must NOT appear,
+   the panel sliding in before the screen has landed, needs no branch either:
+   G.corrRage is -1 until it lands, and the clock says nothing to draw. */
+function rageBand(){if(G.corrRage<0)return;corridorBand(AGORA,G.pt-G.corrRage-CORR_AGORA_WAIT,CORR_AGORA_HOLD,CORR_BAND_PAD);}
 /* ---- up to the full shot ----
    Hold the ball at the top and the screen rises off the corridor to the shot
    the fight opens on: the whole planet from space with every thread of energy
@@ -1855,7 +1933,7 @@ function corridorScene(){
     if(roar.p<1){ctx.save();ctx.translate(-roar.p*W,0);panelClip();
       if(roar.home)rageWorld();else corridorWorld(t);ctx.restore();}
     if(roar.p>0){ctx.save();ctx.translate((1-roar.p)*W,0);panelClip();
-      drawPlate(LOSER,CORR_LOSER_TOP,CORR_LOSER_SHAKE*H,G.t);ctx.restore();}
+      ragePlate(LOSER,CORR_LOSER_TOP,.5,CORR_LOSER_SHAKE,CORR_LOSER_SAT);ctx.restore();}
     ctx.restore();
     corrUrnaNow(t);return;
   }
