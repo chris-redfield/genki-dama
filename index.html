@@ -1228,7 +1228,13 @@ const CUTS=[
    the ending - the screen has been rumbling and burning for a minute and then
    it simply stops. */
 const CORR_BLOW_IN=.55;       // s of going white. Eased IN: slow, then all at once
-const CORR_BLOW_HOLD=.35;     // s of nothing but white
+/* Raised from .35 on 2026-10-19 ("fazer o branco apos a desintegracao durar 1
+   segundo a mais"). This is the PURE white - the .55 going into it and the .9
+   coming out of it are their own numbers and did not move, so what got a
+   second longer is the blank, which is the pause the ending needed. Everything
+   the last screen does is clocked off CORR_BLOW_TOP, so it all moved with it
+   and none of its own timings had to change. */
+const CORR_BLOW_HOLD=1.35;    // s of nothing but white
 const CORR_BLOW_OUT=.9;       // s of the sky coming up out of it
 const CORR_PAN_WAIT=.8;       // s held on the clouds before the camera moves
 const CORR_PAN_DUR=5.5;       // s of travel, top to bottom. "relatively slowly"
@@ -1243,6 +1249,39 @@ const RALLY=new Image();RALLY.src=encodeURI('assets/new/Vast Red Rally Under Cum
 RALLY.addEventListener('load',()=>{RALLY.decode&&RALLY.decode().catch(()=>{});});
 const corrOver=()=>G.corrOver>=0;
 const CORR_BLOW_TOP=()=>CORR_BLOW_IN+CORR_BLOW_HOLD;
+/* ---- the red leaving ----
+   The screen arrives still red, as every screen since the roar has been, and
+   the red drains out of it as the camera comes down: blue again, and properly
+   blue, by the time it reaches the people. Asked for 2026-10-19.
+   HOW it drains is the whole of this. The obvious way - fade the rage tint out
+   - is the purple trap this file warns about twice over: run the colour blend
+   at a part-way alpha and every pixel sits halfway between the red and the
+   sky's blue, which is mauve. Rendered, the midpoint of that fade is a flat
+   dull lavender and the shot dies in it.
+   So nothing ever runs part-way between the two. The SATURATION drains first,
+   fast, which walks the frame from furnace red to a warm neutral without the
+   blend alpha moving at all - no mix, no mauve. Only then does the blend let
+   go, and by that point what it is releasing is near-grey, so the world's own
+   colours simply come back up through it: the sky, the grass, the red of the
+   crowd. Two curves, and the only thing that matters is that the second lags
+   the first. */
+const CORR_RALLY_SAT=CORR_RAGE_SAT;   // where it starts - the first red screen's number
+const CORR_RALLY_DRAIN=1.6;           // the saturation falls on this...
+const CORR_RALLY_RELEASE=2.6;         // ...and the blend lets go on this, later
+function rallyTint(u){
+  const alp=CORR_RAGE_RED*(1-Math.pow(u,CORR_RALLY_RELEASE));
+  if(alp<=0)return;
+  ctx.save();
+  ctx.globalCompositeOperation='color';
+  ctx.globalAlpha=alp;
+  ctx.fillStyle=rageHue(CORR_RALLY_SAT*Math.pow(1-u,CORR_RALLY_DRAIN));
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  // the warm flat red under it goes on the plain linear way; it has no hue to
+  // get wrong, and it is what keeps the blacks from reading cold on the way out
+  const wash=CORR_RAGE_WASH*(1-u);
+  if(wash>0){ctx.fillStyle='rgba(255,40,18,'+wash.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
+}
 /* The crowd, and the camera walking down it. `a` is seconds since the white
    went full. ease() at both ends, so it leans into the move and settles out of
    it rather than starting and stopping dead. */
@@ -1252,7 +1291,196 @@ function rallyWorld(a){
   const s=Math.max(W/iw,H*(1+CORR_END_PAN)/ih), w=iw*s, h=ih*s;
   const u=ease(clamp((a-CORR_PAN_WAIT)/CORR_PAN_DUR,0,1));
   ctx.drawImage(RALLY,(W-w)/2,-(h-H)*u,w,h);
+  rallyTint(u);
+  // ...and the 13 over the lot, keeping its own colours: the red draining is
+  // the SKY's, and this is a thing standing in front of it
+  corr13(a,u,h-H);
 }
+/* ---- the 13 ----
+   The last screen is barely up and it goes off in the middle of it: the star
+   pops in, an explosion with it, and then the camera walks away downward and
+   leaves it in the sky. Asked for 2026-10-19.
+   It is parented to the PICTURE, not to the frame - pinned where the shot
+   opens and then moved by exactly what the camera moves - so the pan leaves it
+   behind instead of carrying it along, which is the whole of the request.
+   On a desktop the travel alone finishes the job: the picture is about 2.2
+   frames tall there, so the 13 is well above the top edge long before the pan
+   ends. A PHONE is the reason there is a fade as well. Cover-fitting 0.8:1
+   into a tall window leaves only CORR_END_PAN of travel - the floor that
+   constant exists to put there - and .45 of a frame is not enough to push a
+   star of this size off the top. What the move does not finish, the fade
+   does, and it is timed to be done well before the picture settles. */
+const STAR13=new Image();STAR13.src=encodeURI('assets/new/Fiery Brushstroke Star with 13.webp');
+STAR13.addEventListener('load',()=>{STAR13.decode&&STAR13.decode().catch(()=>{});});
+const CORR_13_WAIT=CORR_BLOW_OUT;   // it lands on the frame the white finishes lifting
+const CORR_13_POP=CORR_PUNCH;       // s for the pop to settle - the scene's own
+const CORR_13_BACK=1.9;             // how far past its size it swings on the way in
+const CORR_13_H=.46, CORR_13_WMAX=.60;   // of the frame. Height leads, width is the cap
+const CORR_13_MID=.40;              // where it sits when the shot opens
+const CORR_13_GONE=.80, CORR_13_FADE=.25;  // done fading by this share of the pan, over this much of it
+/* Up from nothing, past its size, and back onto it: one overshoot and no
+   second rise, which is the shape every entrance in this scene takes. The
+   difference is that the others start at full size and swing about it, so they
+   are written as 1 plus a kick; this one starts at nothing, so it is the size
+   itself. */
+const backEnv=q=>q>=1?1:1+(CORR_13_BACK+1)*Math.pow(q-1,3)+CORR_13_BACK*Math.pow(q-1,2);
+/* The fragments. Small SOLID red stars - no gradient, no glow, no soft edge -
+   because the thing that threw them is a brush-drawn star and these have to
+   read as pieces of it rather than as sparks.
+   Built once when the blast fires rather than advanced every frame: a one-shot
+   burst has a closed form, so a fragment is a direction, a speed and a spin,
+   and where it is at any moment follows from the clock. Nothing to tick,
+   nothing to collect, and any frame can be drawn on its own - which is also
+   what makes it testable. The array doubles as the did-it-fire flag. */
+const CORR_13_FRAGS=REDUCED?14:34;
+const CORR_13_FRAG_R=.026;      // of H, the biggest of them
+const CORR_13_FRAG_IN=.42;      // a five-point star's waist, as a share of its point
+const CORR_13_SPREAD=.58;       // of H, how far the fastest one gets
+const CORR_13_FRAG_RGB='226,20,28';
+/* Every one of them is inked, and that is not decoration. Red fragments fly
+   out over a sky this scene has just turned RED, so fill alone gave dark
+   specks on a dark field - drawn at .019 with no edge they were all but
+   invisible against the cloud. The ink is what the rest of the game already
+   does with its reds (every panel in it has a hard dark border), and it is the
+   one thing that makes a small shape read on any backdrop it crosses: red
+   cloud now, white cloud a second later, green grass if one ever got that
+   far. Round joins, or the five points spike at this line width. */
+const CORR_13_FRAG_INK=.22;     // of the fragment's own radius
+function burst13(){
+  const a=[];
+  for(let i=0;i<CORR_13_FRAGS;i++)
+    a.push({ang:rand(0,TAU),sp:rand(.3,1),r:rand(.45,1),spin:rand(-6,6),rot:rand(0,TAU),life:rand(.75,1.35)});
+  return a;
+}
+function star5(x,y,r,rot){
+  ctx.beginPath();
+  for(let i=0;i<10;i++){
+    const t=rot+i*Math.PI/5, rr=i%2?r*CORR_13_FRAG_IN:r;
+    const px=x+Math.cos(t)*rr, py=y+Math.sin(t)*rr;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+  ctx.lineWidth=r*CORR_13_FRAG_INK;ctx.stroke();
+  ctx.fill();
+}
+function frags13(b,cx,cy,fade){
+  const F=G.frags;
+  if(!F)return;
+  ctx.fillStyle='rgb('+CORR_13_FRAG_RGB+')';
+  ctx.strokeStyle=INK;ctx.lineJoin='round';
+  for(const p of F){
+    const q=b/p.life;
+    if(q>=1)continue;
+    // out fast and slowing: what a thrown piece does once nothing is pushing it
+    const d=CORR_13_SPREAD*H*p.sp*easeOut(q);
+    ctx.globalAlpha=fade*(1-q*q);
+    star5(cx+Math.cos(p.ang)*d,cy+Math.sin(p.ang)*d,CORR_13_FRAG_R*H*p.r*(1-.35*q),p.rot+p.spin*b);
+  }
+  ctx.globalAlpha=1;
+}
+// the bang itself: one warm bloom at the centre, gone almost as fast as it came
+const CORR_13_FLASH=.3, CORR_13_FLASH_A=.55, CORR_13_FLASH_R=.5;
+function flash13(b,cx,cy,fade){
+  const f=1-clamp(b/CORR_13_FLASH,0,1);
+  if(f<=0)return;
+  const r=H*CORR_13_FLASH_R*(1-.75*f);
+  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+  g.addColorStop(0,'rgba(255,240,214,'+(fade*f*CORR_13_FLASH_A).toFixed(3)+')');
+  g.addColorStop(.55,'rgba(255,120,40,'+(fade*f*CORR_13_FLASH_A*.45).toFixed(3)+')');
+  g.addColorStop(1,'rgba(255,90,30,0)');
+  ctx.fillStyle=g;ctx.fillRect(cx-r,cy-r,r*2,r*2);
+}
+function corr13(a,u,travel){
+  const b=a-CORR_13_WAIT;
+  if(b<0)return;
+  const fade=1-clamp((u-(CORR_13_GONE-CORR_13_FADE))/CORR_13_FADE,0,1);
+  if(fade<=0)return;
+  const cx=W/2, cy=H*CORR_13_MID-travel*u;
+  // the pieces go BEHIND it, so they come out from under the star rather than
+  // across its face
+  frags13(b,cx,cy,fade);
+  flash13(b,cx,cy,fade);
+  if(!STAR13.complete||!STAR13.naturalWidth)return;
+  const ar=STAR13.naturalWidth/STAR13.naturalHeight;
+  const hh=Math.min(H*CORR_13_H,W*CORR_13_WMAX/ar), ww=hh*ar;
+  const s=backEnv(clamp(b/CORR_13_POP,0,1));
+  ctx.save();ctx.globalAlpha=fade;
+  ctx.translate(cx,cy);ctx.scale(s,s);
+  ctx.drawImage(STAR13,-ww/2,-hh/2,ww,hh);
+  ctx.restore();
+}
+/* ---- the strobe ----
+   The three disintegration keyframes are one shot rather than three screens,
+   and what makes them read as a shot is the LIGHT: he is coming apart inside a
+   blast, so the blast pulses on everything in the frame - the plate, the
+   machine, the smoke off its lid. Asked for 2026-10-19.
+   It is drawn last and untransformed, OVER the machine rather than under it,
+   because this is a light in the room and the machine is in the room. It is
+   the only thing in the scene not attached to a plate.
+   Where it starts is looked up rather than written down, so putting a new
+   screen in ahead of the disintegration carries the strobe along with it
+   instead of leaving it to flash over the wrong plate. */
+const CORR_STROBE_FROM=CUTS.findIndex(c=>c.img===BLAST1);
+/* ADDITIVE, not a red sheet laid over the top. A source-over red takes the
+   pale half of these plates - and the disintegration is mostly pale, stars
+   coming off him against a bleached sky - and pulls it DOWN toward the fill,
+   so every pulse darkens the frame and the shot goes muddy. Added, it
+   brightens what is already warm, saturates where the plate is light and
+   leaves the ink lines dark: a light coming on rather than a filter sliding
+   in. */
+const CORR_STROBE_RGB='255,40,18';   // the scene's own red, as the sky and the wash use it
+/* One pulse is the keyframe flash again - full the instant it fires, gone by
+   the end of its own cycle - and the strobe is that pulse on a loop, which is
+   the gesture this scene repeats everywhere else.
+   Shaped rather than square, and not only for taste: a square at 12Hz against
+   a 60Hz frame gets 2.5 frames a half-cycle, so the duty lands 3 on, 2 off and
+   the flicker visibly limps. A decay has no duty to land wrong.
+   11 and not 12, which is the same trap one level down. 12 divides 60, so on a
+   60Hz screen the phase LOCKS: the pulse is sampled at the same five points of
+   its cycle for ever, and which five depends on whatever G.t happened to be
+   when the chain reached the blast. Measured at 12, a run sampled the cycle at
+   .2/.4/.6/.8/1.0 and the pulse never once reached its own peak - it topped out
+   at .182 of a .26 cap, and another run would have found a different ceiling.
+   11 divides neither 60 nor 120, so the phase drifts and every pulse is caught
+   near its top sooner or later. The cap below is therefore the worst case the
+   screen can actually show, which is what makes it worth measuring. */
+const CORR_STROBE_HZ=REDUCED?0:11;
+const CORR_STROBE_FALL=1.6;          // how sharply one pulse falls away
+/* How bright a pulse gets, and the one number here to be careful with, so it
+   was measured rather than eyeballed. Full-frame flicker above 3Hz is the
+   classic photosensitive trigger, and what the threshold is written against is
+   the LUMINANCE swing between the two states - not the colour and not the
+   rate: a flash is a pair of opposing changes of 10% of full scale or more,
+   with the darker of the two below .80.
+   Added red buys very little of that here, because the blast plates are
+   palest where they are brightest and adding red to something already near
+   white does almost nothing to it. Measured on all three keyframes at .26:
+   trough .512, peak .572 - a swing of 6.1% against the 10% a flash starts at.
+   prefers-reduced-motion turns the whole thing off (HZ 0).
+   Two dials if it should ever be gentler: this one, which moves the swing
+   very nearly linearly (.21 measures 5.0%), or CORR_STROBE_HZ under 3, which
+   leaves the threshold behind altogether. And one if it should be REDDER
+   without being brighter: 'color' in place of 'lighter' below pulses the hue
+   and leaves lightness alone - .43% swing even at alpha .85 - though it reads
+   as a filter flickering rather than as a light, and it takes the machine's
+   own screen red with it. */
+const CORR_STROBE_A=.26;
+const strobeA=t=>CORR_STROBE_HZ?CORR_STROBE_A*Math.pow(1-(t*CORR_STROBE_HZ)%1,CORR_STROBE_FALL):0;
+function corrStrobe(){
+  if(G.corrCut<CORR_STROBE_FROM)return;
+  const a=strobeA(G.t);
+  if(a<=0)return;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.globalAlpha=a;
+  ctx.fillStyle='rgb('+CORR_STROBE_RGB+')';
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+}
+/* Every path on the cut branch ends the same way - the machine on the glass,
+   then the strobe over the lot - so all three end through one function and
+   cannot drift apart. */
+const cutOver=t=>{corrUrnaNow(t);corrStrobe();};
 /* A tail screen that carries lettering says so with a `band` field, and that
    is the whole of it - no second branch and no second clock, the same way a
    new screen is a line in CUTS rather than another state. The clock is the
@@ -1573,7 +1801,17 @@ function corrFullTick(dt){
        and an index saying which plate it is walking TO. The last entry holds
        for Infinity, so the walk ends by never leaving rather than by a test
        that has to be kept in step with the length of the list. */
-    if(corrOver()){G.corrOver+=dt;return;}   // ...and after the white, nothing
+    if(corrOver()){
+      /* Not quite nothing any more: the 13 goes off partway through the last
+         screen. Its fragments are built here rather than in the draw because
+         this is the frame that knows it has just happened - and the array
+         doubles as the flag, so it cannot fire twice. */
+      if(!G.frags&&G.corrOver>=CORR_BLOW_TOP()+CORR_13_WAIT){
+        G.frags=burst13();
+        tone('square',520,90,.5,.075);tone('sine',140,40,1.1,.09);noise(.9,.15,1500);
+      }
+      G.corrOver+=dt;return;
+    }
     if(G.corrCut>=0){
       G.corrEnd+=dt;
       /* A standing cut has no travel to wait out, so its dwell starts at once.
@@ -1635,7 +1873,7 @@ function corridorHit(i){
   tone('sine',300,80,.34,.085*v);noise(.22,.25*v,1200);
   if(!i)tone('square',880,440,.09,.045);
 }
-function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;G.corrRoar=-1;G.corrRage=-1;G.corrGlobe2=-1;G.corrRage2=-1;G.corrCut=-1;G.corrEnd=0;G.corrOver=-1;G.corrSmoke=[];G.corrSmokeAcc=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
+function toCorridor(){G.corrHits=corridorHits();G.corrBeat=0;G.corrE=0;G.corrGlobe=-1;G.corrFull=0;G.corrBack=-9;G.corrPlus=false;G.corrRoar=-1;G.corrRage=-1;G.corrGlobe2=-1;G.corrRage2=-1;G.corrCut=-1;G.corrEnd=0;G.corrOver=-1;G.frags=null;G.corrSmoke=[];G.corrSmokeAcc=0;setPhase('corridor');tone('sine',560,300,1.9,.05);}
 /* The corridor's own mash. It drives the same G.lastMash the fight's does, which
    is what makes the machine animate identically here - urnaFrame() reads that
    one clock and nothing else.
@@ -1982,7 +2220,7 @@ function corridorScene(){
         else cutPlate(a<CORR_GLOBE_FADE?CUTS[i-1]:c);
         if(f.veil>0){ctx.fillStyle='rgba(0,0,0,'+f.veil.toFixed(3)+')';ctx.fillRect(0,0,W,H);}
       }else cutPlate(c);
-      corrUrnaNow(t);return;
+      cutOver(t);return;
     }
     if(c.in==='cut'){
       const prev=CUTS[i-1], amp=c.shake*H;
@@ -1997,7 +2235,7 @@ function corridorScene(){
       if(f>0){ctx.fillStyle='rgba(255,246,232,'+(f*CORR_DISINT_FLASH_A).toFixed(3)+')';
               ctx.fillRect(r.x,r.y,r.w,r.h);}
       ctx.restore();
-      corrUrnaNow(t);return;
+      cutOver(t);return;
     }
     const p=a<S?easeOut(a/S):1, lock=a<S?-1:a-S;
     const eq=lock>=0?clamp(lock/CORR_PUNCH,0,1):1;
@@ -2011,7 +2249,7 @@ function corridorScene(){
     if(p<1)panelClip();            // once home it is the whole frame, and clips nothing
     cutPlate(c);ctx.restore();
     ctx.restore();
-    corrUrnaNow(t);return;
+    cutOver(t);return;
   }
   if(G.corrRage2>=0){rage2World();corrUrnaNow(t);return;}
   /* Up for the last time. The machine stays on the glass through the fade and
