@@ -1275,9 +1275,19 @@ const CORR_BLOW_TOP=()=>CORR_BLOW_IN+CORR_BLOW_HOLD;
    quarter of the way down. Both are fixed below - and the climb now ends where
    it was always heading: .62 at the roar, .74, .80 down the tail, 1 here. */
 const CORR_RALLY_SAT=1;
-const CORR_RALLY_HOLD=.34;      // share of the pan it stays FULLY red for...
-const CORR_RALLY_DRAIN=.30;     // ...then the share it takes to lose the colour...
-const CORR_RALLY_RELEASE=.30;   // ...and the share the blend then takes to let go
+/* The handover is SHORT, and that is the answer to a problem neither ordering
+   solves on its own. Run the two windows strictly in sequence and there is a
+   grey frame between them; run them together and the midpoint is the mauve -
+   rendered side by side, both faults are plainly there and no amount of
+   reshaping the curves removes them, because they are the two ends of the same
+   trade. What does remove them is giving neither one time to read: at .08 and
+   .08 the whole thing is about a third of a second, the half-grey moment lasts
+   around .14s, and it goes past as a wash rather than as a state.
+   Shipped long (.30/.30) on 2026-10-19 and the user saw exactly that: "it
+   looks like it goes to black and white and then goes to blue". */
+const CORR_RALLY_HOLD=.26;      // share of the pan it stays FULLY red for...
+const CORR_RALLY_DRAIN=.08;     // ...then the share it takes to lose the colour...
+const CORR_RALLY_RELEASE=.08;   // ...and the share the blend then takes to let go
 /* How far INTO the drain the blend starts letting go. Nought is the strict
    reading of the paragraph above - no overlap at all - and it is wrong in a
    way only rendering shows: with the fill at zero saturation and the blend
@@ -1290,8 +1300,20 @@ const CORR_RALLY_RELEASE=.30;   // ...and the share the blend then takes to let 
    near-grey, and the two can run together without ever mixing a red with a
    blue. Measured across the handover at .5 there is no frame of either fault.
    Push it to 1 and the release begins while the fill is still properly red,
-   which is the mauve again. */
+   which is the mauve again.
+   What the ordering still buys, at any speed: whenever the blend is part-way
+   the fill is already at zero saturation, so there is no hue left to mix and
+   the mauve cannot happen. That is the invariant - the short windows are about
+   how long the GREY shows, not about whether the purple can. */
 const CORR_RALLY_OVERLAP=.5;
+/* Where the blue has to be by. The sky leaves the frame from the bottom as the
+   camera comes down, so arriving blue late means arriving blue onto a frame
+   that is mostly crowd - the one screen of sky in the game, and you would miss
+   it. HOLD plus the handover lands it at u=.38, which on a 16:9 window still
+   has sky across the top two thirds of the frame and leaves better than three
+   seconds of it before the picture settles on the ground. The user asked for
+   exactly this: see the blue "a little bit before the screen lands on the
+   ground, and for a little longer". */
 function rallyTint(u){
   const sat=CORR_RALLY_SAT*(1-ease(clamp((u-CORR_RALLY_HOLD)/CORR_RALLY_DRAIN,0,1)));
   const let_=CORR_RALLY_HOLD+CORR_RALLY_DRAIN*(1-CORR_RALLY_OVERLAP);
