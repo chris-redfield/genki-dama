@@ -26,6 +26,9 @@
   --display:"Titan One",Impact,"Arial Black",sans-serif;
   --body:"M PLUS Rounded 1c","Trebuchet MS",system-ui,sans-serif;
   color-scheme:light;
+  /* 1 under the (max-height:520px) breakpoint at the bottom of this sheet; the
+     secret refuses to open there because the panel would sit across the man */
+  --tiny:0;
 }
 html,body{height:100%}
 /* The phone browser chrome slides in and out as you play; 100dvh keeps the
@@ -173,7 +176,8 @@ body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14
    needs: it sat across his chest. The how-to's slot is the one place on this
    screen already proven to hold a panel at every size, and the panel it holds
    is taller than this one. */
-#menu .star{cursor:pointer}
+/* no cursor:pointer - the stars stopped being the way into the secret on
+   2026-10-20 and a pointer on them would now be a lie */
 /* 10% off the width and a little further down, asked for 2026-10-19. Both
    terms scale together so the logo keeps its size relative to the column on
    every window: 430 -> 387 and 86vw -> 77.4vw. The drop has a ceiling that is
@@ -301,15 +305,29 @@ button:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
   #titleFoot{margin-bottom:24px}
   #menu .star{margin-bottom:16px}
 }
-/* a short phone (SE-sized, or landscape) cannot fit the full how-to column */
+/* a short phone (SE-sized, or landscape) cannot fit the full how-to column.
+   This breakpoint is about the how-to COLUMN. The one about a screen being too
+   short for anything at all is the 520 block below, which is where --tiny
+   lives. */
 @media (max-height:700px) and (max-width:900px){
   #menu .howto,#menu .primary{font-size:30px}   /* short screens have to give some of it back */
   #menu .card p{font-size:12px}
   #menu #howtoBody p{font-size:17px;line-height:1.28}
   #titleFoot{height:calc(clamp(66px,12vh,120px)*var(--manScale))}
-  .star{display:none}
-  /* the star is what carries margin-top:auto, so he has to carry it himself here
-     or there is nothing left to push him down to the sand */
+  /* The stars are hidden here ONLY while a panel is out, which is the state that
+     genuinely has no room - see the measurement in the comment below. They used
+     to be hidden at this size unconditionally, and on 2026-10-20 the user
+     reported them missing on an iPhone while an Android friend saw them: a real
+     iPhone lands in this breakpoint whenever Safari's toolbars show, so it was
+     always the closed state paying for the open state's problem. Measured at
+     500x580 closed: 184px of dead space between "Como jogar" and the man, and
+     the row needs 40px, so it fits with 27px to spare and no overlap.
+     Keeping the hide scoped to the open state is also what keeps the
+     compensation below correct, since that rule is only right while the star
+     is out of the flow. */
+  #menu.howtoOpen .star,#menu.secretOpen .star{display:none}
+  /* the star is what carries margin-top:auto when a panel is open, so he has to
+     carry it himself here or there is nothing left to push him down to the sand */
   #titleFoot{margin-top:auto}
   /* ...and he has to keep carrying it with the panel OPEN. The open state hands
      the auto margin to the star, which is display:none at this size, so it went
@@ -321,6 +339,29 @@ button:focus-visible{outline:3px solid var(--ki);outline-offset:2px}
      tapped. A real iPhone lands in this breakpoint whenever Safari's toolbars
      are showing, which is most of the time. */
   #menu.howtoOpen #titleFoot,#menu.secretOpen #titleFoot{margin-top:auto}
+}
+/* ...and a GENUINELY short screen cannot hold the row even closed, so there the
+   stars still go entirely. Swept 2026-10-20 with the row forced on: his box
+   starts hanging off the bottom below about 473px of viewport height - 18px off
+   at 433, 102px off at 313 (a landscape phone). Hiding at 520 keeps a margin
+   over that and lands in a wide empty band: a phone in landscape gives roughly
+   280-390px of height, while the shortest iPhone in PORTRAIT with Safari's
+   toolbars out is about 553 (SE; 664 on a 14), so the two cases separate
+   cleanly and no real portrait phone loses its stars.
+   520 is also already this sheet's short-screen breakpoint, just without the
+   width term, which this needs so a short-but-wide desktop window keeps the
+   behaviour it has always had. */
+@media (max-height:520px) and (max-width:900px){
+  .star{display:none}
+  /* The same "genuinely too short" line the secret refuses to open across, and
+     it is one line rather than two because the two were measured to the same
+     place: the stars start hanging off the bottom below ~473px of height, and
+     the logo panel runs out of clearance over the man at ~513 (7px left at 513,
+     63px at 580). --tiny is this number's only written-down form - the JS reads
+     it back through getComputedStyle in tooSmallForPanel(), so there is nothing
+     to drift. It was briefly on the 700 block above, which blocked the secret on
+     screens where it was then measured to fit perfectly well. */
+  :root{--tiny:1}
 }
 </style>
 
@@ -517,9 +558,19 @@ function setPhase(p){G.phase=p;G.pt=0;}
 addEventListener('keydown',e=>{
   const k=e.code;
   if(k==='Space')e.preventDefault();
-  // any key starts the run, except on the Como jogar control, where a key press
-  // means "open this"
-  if(G.phase==='menu'&&!(e.target&&e.target.closest&&e.target.closest('.howtoWrap'))){beginStart();return;}
+  /* Any key starts the run, except on the Como jogar control, where a key press
+     means "open this" - and except for the two cases the secret word needs.
+     MODIFIERS fall through doing nothing: Shift and CapsLock each fire a
+     keydown of their own, and they are exactly how the word gets typed in
+     upper case, so starting the run on them would make the secret untypeable.
+     LETTERS are reserved for spelling it, so they no longer start the run
+     either; Space, Enter and every other key still do, which is the path the
+     COMECAR button and a tap on the canvas already share. */
+  if(G.phase==='menu'&&!(e.target&&e.target.closest&&e.target.closest('.howtoWrap'))){
+    if(/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key))return;
+    if(e.key.length===1&&/[A-Za-z]/.test(e.key)){secretType(e);return;}
+    beginStart();return;
+  }
   if(e.repeat)return;
   if(k==='Space'||k==='Enter'){
     if(G.phase==='corridor')corrMash();
@@ -560,19 +611,49 @@ howtoBtn.addEventListener('click',()=>{
   placeStars();
 });
 /* ---- the secret ----
-   Click the stars and the studio logo appears under them, on the same toggle
-   the how-to runs on. Pointer only, and deliberately NOT focusable: the row is
-   aria-hidden decoration, so putting it in the tab order would both announce
-   the secret and walk into the keydown handler above, where any key pressed on
-   the menu starts the run.
-   Two consequences worth knowing. The row is display:none under
-   `(max-height:700px) and (max-width:900px)`, so the secret is not reachable
-   on a short or sideways phone - it is there on an ordinary portrait phone,
-   which clears that query on height. And placeStars() hides the row whenever
-   the open how-to panel reaches it, which makes the stars unclickable in that
-   state: no conflict to resolve, the secret is simply only open to a tidy
-   screen. */
+   Type SABOROSA on the title screen and the studio logo appears, on the same
+   toggle and in the same slot the how-to runs on. Clicking the stars was the
+   way in until 2026-10-20; the user replaced it with the word, so the row is
+   now purely decorative - it keeps its aria-hidden and has lost its click
+   handler and its cursor:pointer.
+
+   UPPER CASE IS REQUIRED, and that is the whole reason this reads e.key and
+   not e.code: e.code is 'KeyS' whether or not Shift is down, while e.key is
+   the character actually produced, so an 'S' means the player really did hold
+   Shift or set CapsLock. Both routes work because both produce the same e.key.
+
+   A lower-case letter is still appended rather than ignored, and that matters:
+   ignoring it would let 'SABORxOSA' match with a lower-case x, because the x
+   would simply vanish from the buffer. Appending makes a wrong case BREAK the
+   run, which is what "precisa ser caixa alta" has to mean.
+
+   Typing is inherently a physical-keyboard gesture, so unlike the old click
+   there is no way to reach this on a phone at all. The size guard is still
+   needed for a short desktop window - see secretType(). */
 function closeSecret(){$('saborosaBody').hidden=true;$('menu').classList.remove('secretOpen');}
+/* The one JS reader of the short-screen breakpoint. The number itself stays in
+   the stylesheet as --tiny, so there is nothing here to drift out of step. */
+function tooSmallForPanel(){
+  return getComputedStyle(document.documentElement).getPropertyValue('--tiny').trim()==='1';
+}
+/* The buffer keeps only the last 8 characters typed, which is what makes a
+   mistyped attempt free: SABOTOSASABOROSA opens it on the second word, because
+   by then the last 8 ARE the word. A sliding window also handles an overlap for
+   nothing, where an index-and-reset would not - SASABOROSA ends on the right 8. */
+const SECRET_CODE='SABOROSA';
+let secretBuf='';
+function secretType(e){
+  if(e.repeat)return;   // a held letter would otherwise fill the window with itself
+  secretBuf=(secretBuf+e.key).slice(-SECRET_CODE.length);
+  if(secretBuf!==SECRET_CODE)return;
+  secretBuf='';         // so typing it again toggles, rather than re-opening what is open
+  /* Too short a window to hold the panel: it would sit across the man, the same
+     thing the resize handler below guards against. Read off the --tiny custom
+     property rather than the star row's offsetParent, because the row is
+     visible at this size again as of 2026-10-20 and would no longer report it. */
+  if(tooSmallForPanel())return;
+  toggleSecret();
+}
 function toggleSecret(){
   const body=$('saborosaBody');
   if(!body.hidden){closeSecret();placeStars();return;}
@@ -582,23 +663,24 @@ function toggleSecret(){
   if(howtoBtn.getAttribute('aria-expanded')==='true')howtoBtn.click();
   body.hidden=false;$('menu').classList.add('secretOpen');
   placeStars();
-  // a click is a gesture, so this is a legal place to wake the audio
+  // a keypress is as good a user gesture as the click used to be, so this is
+  // still a legal place to wake the audio
   audioInit();tone('square',760,1180,.11,.05);tone('square',1140,1520,.09,.035,.06);
 }
+/* Decoration now: no click handler, and no longer the size probe either - see
+   tooSmallForPanel(). placeStars() is the only thing that still touches it. */
 const starRow=document.querySelector('#menu .star');
-if(starRow)starRow.addEventListener('click',toggleSecret);
-/* ...and the logo closes itself. The stars are the way in, but placeStars can
-   take them off the screen when a panel reaches them, and a secret you cannot
-   shut is a trap rather than a joke. */
+/* The logo closes itself, and with the stars retired this carries more weight
+   than it used to: clicking it is now the ONLY way out other than typing the
+   word a second time, and a secret you cannot shut is a trap rather than a
+   joke. */
 $('saborosaBody').addEventListener('click',toggleSecret);
-/* The star row is display:none on a short or sideways window, so the way back
-   INTO the secret disappears at that size - and a panel left open across a
-   rotate would sit on the man with its own handle gone. Measured at 844x303:
-   101px of overlap. So the secret does not survive losing its own door.
-   offsetParent is null exactly when the row is display:none, which is the one
-   state this has to catch. */
+/* A panel left open across a resize into a short window sits on the man -
+   measured at 844x303: 101px of overlap. That, not the lost click target, is
+   why the secret does not survive the window getting small; it is the same
+   reason secretType() refuses to open it there in the first place. */
 addEventListener('resize',()=>{
-  if(starRow&&!starRow.offsetParent&&!$('saborosaBody').hidden)closeSecret();
+  if(tooSmallForPanel()&&!$('saborosaBody').hidden)closeSecret();
   placeStars();
 });
 $('bStart').addEventListener('click',beginStart);
