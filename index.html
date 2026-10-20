@@ -2499,3 +2499,21 @@ $('menu').hidden=false;
 requestAnimationFrame(loop);
 })();
 </script>
+
+<!-- Access counting. Deliberately the LAST thing in the document and outside the
+     IIFE above: nothing in the game calls it, nothing in it calls the game, and
+     if it is blocked or fails to load the page is unaffected because no code
+     path here depends on it. `defer` means it cannot execute until the document
+     is parsed, i.e. until the game has already set itself up and put the title
+     menu on screen - so it never steals main-thread time from the corridor,
+     whose beats are choreographed to the millisecond against the mp3.
+     Umami is cookieless and stores no visitor identity, which is why there is
+     no consent banner on the title screen.
+     data-domains keeps the count honest: the tracker only runs on the real
+     host, so opening index.html locally or hitting the raw github.io URL does
+     not register as a visit.
+     The website ID is not a secret: it only says which dashboard the count
+     lands in, and it is visible in the page source to anyone who looks. -->
+<script defer src="https://cloud.umami.is/script.js"
+        data-website-id="10d441fe-19b9-4c55-a6b9-06027fa14825"
+        data-domains="votarno13.com.br,www.votarno13.com.br"></script>
